@@ -4,12 +4,13 @@ import random
 from pathlib import Path
 
 import pytest
+import pytest_asyncio
 from aiogremlin.process.graph_traversal import __
 
 from maps import loader, xml
 
 
-@pytest.fixture
+@pytest_asyncio.fixture
 async def session(goblin_app):
     yield await goblin_app.session()
 

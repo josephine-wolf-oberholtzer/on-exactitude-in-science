@@ -44,7 +44,7 @@ pytest:
 		-vv \
 		${testPaths}
 
-test:  pytest
+test: pytest
 
 reformat: ruff-imports-fix ruff-format-fix ## Reformat codebase
 

@@ -2,13 +2,14 @@ import asyncio
 from pathlib import Path
 
 import pytest
+import pytest_asyncio
 from aiohttp.test_utils import TestClient, TestServer
 
 from maps import app, goblin, loader
 
 
-@pytest.fixture(scope="module")
-async def test_data(event_loop):
+@pytest_asyncio.fixture(scope="module")
+async def test_data():
     path = Path(__file__).parent
     async with goblin.GoblinManager(aliases={"g": "tg"}) as goblin_app:
         session = await goblin_app.session()
@@ -17,7 +18,7 @@ async def test_data(event_loop):
     yield
 
 
-@pytest.fixture
+@pytest_asyncio.fixture
 async def api_client(test_data):
     application = app.init_app(aliases={"g": "tg"})
     client = TestClient(TestServer(application))

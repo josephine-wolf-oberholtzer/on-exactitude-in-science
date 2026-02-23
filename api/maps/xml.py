@@ -5,10 +5,10 @@ import re
 import traceback
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import IO, Any, Generator, List, Optional, Set, cast
+from typing import IO, Any, Generator, List, Optional, Sequence, Set, cast
 from xml.dom import minidom
 
-from lxml.etree import ElementTree, iterparse
+from lxml.etree import Element, ElementTree, iterparse
 
 date_regex = re.compile(r"^(\d{4})-(\d{2})-(\d{2})$")
 date_no_dashes_regex = re.compile(r"^(\d{4})(\d{2})(\d{2})$")
@@ -77,7 +77,7 @@ class Release:
     year: Optional[int] = field(default=None)
 
 
-def get_xml_path(directory_path: Path, tag: str):
+def get_xml_path(directory_path: Path, tag: str) -> Path:
     glob_string = "discogs_*_{}s.xml.gz".format(tag)
     file_paths = list(directory_path.glob(glob_string))
     if not file_paths:
@@ -86,7 +86,7 @@ def get_xml_path(directory_path: Path, tag: str):
     return file_paths[0]
 
 
-def iterate_xml(xml_path: Path, tag: str):
+def iterate_xml(xml_path: Path, tag: str) -> Generator[Element, None, None]:
     with gzip.GzipFile(xml_path, "r") as gzip_file:
         context = iterparse(cast(IO[Any], gzip_file), events=["start", "end"])
         context = iter(context)
@@ -104,7 +104,7 @@ def iterate_xml(xml_path: Path, tag: str):
                     root.clear()
 
 
-def prettify(element):
+def prettify(element: Element) -> str:
     string = ElementTree.tostring(element, "utf-8")
     reparsed = minidom.parseString(string)
     return reparsed.toprettyxml(indent=" " * 4)
@@ -125,18 +125,24 @@ def build_test_files(source_path: Path, target_path: Path, n=10):
             gzip_file.write("</{}s>\n".format(tag).encode())
 
 
+def find_list(element: Element, name: str) -> Sequence[Element]:
+    if (elements := element.find(name)) is None:
+        return []
+    return elements
+
+
 def get_artist_iterator(xml_path: Path) -> Generator[Artist, None, None]:
     for element in iterate_xml(xml_path, "artist"):
         artist = Artist(
             entity_id=int(element.find("id").text), name=element.find("name").text
         )
-        for subelement in element.find("aliases") or []:
+        for subelement in find_list(element, "aliases"):
             alias = Artist(entity_id=int(subelement.get("id")), name=subelement.text)
             artist.aliases.append(alias)
-        for subelement in element.find("groups") or []:
+        for subelement in find_list(element, "groups"):
             group = Artist(entity_id=int(subelement.get("id")), name=subelement.text)
             artist.groups.append(group)
-        for subelement in element.find("members") or []:
+        for subelement in find_list(element, "members"):
             if subelement.tag == "id":
                 continue
             member = Artist(entity_id=int(subelement.get("id")), name=subelement.text)
@@ -156,7 +162,7 @@ def get_company_iterator(xml_path: Path) -> Generator[Company, None, None]:
             company.parent_company = Company(
                 entity_id=int(parent_company.get("id")), name=parent_company.text
             )
-        for subelement in element.find("sublabels") or []:
+        for subelement in find_list(element, "sublabels"):
             subsidiary = Company(
                 entity_id=int(subelement.get("id")), name=subelement.text
             )
@@ -178,7 +184,7 @@ def get_master_iterator(xml_path: Path) -> Generator[Master, None, None]:
 def get_release_iterator(xml_path: Path):
     def get_artists(element) -> List[Artist]:
         artists: Set[Artist] = set()
-        for artist in element.find("artists") or []:
+        for artist in find_list(element, "artists"):
             artists.add(
                 Artist(
                     entity_id=int(artist.find("id").text), name=artist.find("name").text
@@ -188,7 +194,7 @@ def get_release_iterator(xml_path: Path):
 
     def get_companies(element) -> List[Company]:
         companies: List[Company] = []
-        for company in element.find("companies") or []:
+        for company in find_list(element, "companies"):
             companies.append(
                 Company(
                     entity_id=int(company.find("id").text),
@@ -205,7 +211,7 @@ def get_release_iterator(xml_path: Path):
 
     def get_extra_artists(element) -> List[Artist]:
         extra_artists: List[Artist] = []
-        for extra_artist in element.find("extraartists") or []:
+        for extra_artist in find_list(element, "extraartists"):
             extra_artists.append(
                 Artist(
                     entity_id=int(extra_artist.find("id").text),
@@ -217,21 +223,21 @@ def get_release_iterator(xml_path: Path):
 
     def get_formats(element) -> List[str]:
         formats: Set[str] = set()
-        for format_ in element.find("formats") or []:
+        for format_ in find_list(element, "formats"):
             formats.add(format_.get("name"))
-            for description in format_.find("descriptions") or []:
+            for description in find_list(format_, "descriptions"):
                 formats.add(description.text)
         return sorted(formats)
 
     def get_genres(element) -> List[str]:
         result = []
-        for genre in element.find("genres") or []:
+        for genre in find_list(element, "genres"):
             result.append(genre.text)
         return sorted(set(result))
 
     def get_labels(element) -> List[Company]:
         labels: Set[Company] = set()
-        for label in element.find("labels") or []:
+        for label in find_list(element, "labels"):
             label = Company(entity_id=int(label.get("id")), name=label.get("name"))
             labels.add(label)
         return sorted(labels, key=lambda x: x.entity_id)
@@ -248,13 +254,13 @@ def get_release_iterator(xml_path: Path):
 
     def get_styles(element) -> List[str]:
         result = []
-        for style in element.find("styles") or []:
+        for style in find_list(element, "styles"):
             result.append(style.text)
         return sorted(set(result))
 
     def get_tracks(element, release_id) -> List[Track]:
         tracks: List[Track] = []
-        for i, track in enumerate(element.find("tracklist") or [], 1):
+        for i, track in enumerate(find_list(element, "tracklist"), 1):
             position = (track.find("position").text or "").strip() or str(i)
             tracks.append(
                 Track(
@@ -269,7 +275,7 @@ def get_release_iterator(xml_path: Path):
 
     def get_videos(element) -> Optional[str]:
         videos: List[dict] = []
-        for video in element.find("videos") or []:
+        for video in find_list(element, "videos"):
             title = video.find("title").text
             url = video.get("src")
             videos.append({"title": title, "url": url})
