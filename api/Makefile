@@ -1,40 +1,35 @@
-.PHONY: build docs gh-pages
-
 project = maps
 errors = E123,E203,E265,E266,E501,W503
 origin := $(shell git config --get remote.origin.url)
 formatPaths = ${project}/ tests/
 testPaths = ${project}/ tests/
-imageName = josiahwolfoberholtzer/on-exactitude-in-science-api
+imageName = josephine-wolf-oberholtzer/on-exactitude-in-science-api
 gitCommit = git rev-parse HEAD
 
-black-check:
-	black --target-version py36 --check --diff ${formatPaths}
+help: ## This help
+	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-30s\033[0m %s\n", $$1, $$2}'
 
-black-reformat:
-	black --target-version py36 ${formatPaths}
+build:
+	docker build -t ${imageName}:latest .
+	docker build -t ${imageName}:${gitCommit} .
+
+push: build
+	docker login -u josephine-wolf-oberholtzer
+	docker push ${imageName}:latest
+	docker push ${imageName}:${gitCommit}
 
 clean:
 	find . -name '*.pyc' | xargs rm
 	rm -Rif *.egg-info/
 	rm -Rif .*cache/
-	rm -Rif .tox/
 	rm -Rif __pycache__
 	rm -Rif build/
 	rm -Rif dist/
 	rm -Rif htmlcov/
 	rm -Rif prof/
+	rm -Rif wheelhouse/
 
-flake8:
-	flake8 --max-line-length=90 --isolated --ignore=${errors} ${formatPaths}
-
-isort:
-	isort \
-		--case-sensitive \
-		--multi-line 3 \
-		--trailing-comma \
-		--use-parentheses \
-		${formatPaths}
+lint: reformat ruff-lint mypy ## Run all linters
 
 mypy:
 	mypy --ignore-missing-imports ${project}/
@@ -49,15 +44,24 @@ pytest:
 		-vv \
 		${testPaths}
 
-reformat: isort black-reformat
+test:  pytest
 
-test: black-check flake8 mypy pytest
+reformat: ruff-imports-fix ruff-format-fix ## Reformat codebase
 
-build:
-	docker build -t ${imageName}:latest .
-	docker build -t ${imageName}:${gitCommit} .
+ruff-format: ## Lint via ruff
+	ruff format --check --diff ${formatPaths}
 
-push: build
-	docker login -u josiahwolfoberholtzer
-	docker push ${imageName}:latest
-	docker push ${imageName}:${gitCommit}
+ruff-format-fix: ## Lint via ruff
+	ruff format ${formatPaths}
+
+ruff-imports: ## Format imports via ruff
+	ruff check --select I,RUF022 ${formatPaths}
+
+ruff-imports-fix: ## Format imports via ruff
+	ruff check --select I,RUF022 --fix ${formatPaths}
+
+ruff-lint: ## Lint via ruff
+	ruff check --diff ${formatPaths}
+
+ruff-lint-fix: ## Lint via ruff
+	ruff check --fix ${formatPaths}

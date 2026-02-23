@@ -147,7 +147,7 @@ async def test_search(api_client):
                         "url": "https://www.youtube.com/watch?v=grlYRK1aSus",
                     },
                     {
-                        "title": "TETSU INOUE background story _ world " "receiver",
+                        "title": "TETSU INOUE background story _ world receiver",
                         "url": "https://www.youtube.com/watch?v=0ge7OWBJoQY",
                     },
                     {

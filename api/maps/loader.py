@@ -137,7 +137,10 @@ async def drop_vertices(goblin_app, timestamp):
     if not total:
         return
     with TQDMK8S(
-        desc="Purging Old Vertices", dynamic_ncols=True, file=sys.stdout, total=None,
+        desc="Purging Old Vertices",
+        dynamic_ncols=True,
+        file=sys.stdout,
+        total=None,
     ) as progress_bar:
         batch = 100
         dropped = 1
@@ -165,7 +168,10 @@ def find_limit(directory_path, tag):
         return json.loads(cache_path.read_text())["count"]
     count = 0
     with TQDMK8S(
-        desc=f"Counting {tag} elements", file=sys.stdout, mininterval=5.0, total=None,
+        desc=f"Counting {tag} elements",
+        file=sys.stdout,
+        mininterval=5.0,
+        total=None,
     ) as progress_bar:
         for _ in xml.iterate_xml(xml_path, tag):
             count += 1
@@ -192,7 +198,10 @@ def find_limits(path, limit: Optional[int] = None):
 
 
 async def load(
-    goblin_app, path: Path, consumer_count: int = 1, limit: Optional[int] = None,
+    goblin_app,
+    path: Path,
+    consumer_count: int = 1,
+    limit: Optional[int] = None,
 ):
     """
     Update graph from Discogs .xml.gz files.

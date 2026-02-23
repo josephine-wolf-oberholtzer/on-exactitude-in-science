@@ -178,7 +178,8 @@ async def get_locality_traversal(
         )
         .until(
             __.or_(
-                __.cap("edges").unfold().count().is_(P.gt(limit)), __.loops().is_(10),
+                __.cap("edges").unfold().count().is_(P.gt(limit)),
+                __.loops().is_(10),
             )
         )
         .cap("edges")
