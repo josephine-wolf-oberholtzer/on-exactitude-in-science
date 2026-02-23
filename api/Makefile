@@ -4,7 +4,7 @@ origin := $(shell git config --get remote.origin.url)
 formatPaths = ${project}/ tests/
 testPaths = ${project}/ tests/
 imageName = josephine-wolf-oberholtzer/on-exactitude-in-science-api
-gitCommit = git rev-parse HEAD
+gitCommit = $(shell git rev-parse HEAD)
 
 help: ## This help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-30s\033[0m %s\n", $$1, $$2}'
