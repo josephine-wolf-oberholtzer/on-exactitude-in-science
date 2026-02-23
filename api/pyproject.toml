@@ -25,11 +25,13 @@ dependencies = [
 
 [project.optional-dependencies]
 test = [
+  "lxml-stubs",
   "mypy",
   "pytest",
   "pytest-asyncio",
   "pytest-cov",
   "ruff",
+  "types-tqdm",
 ]
 
 [project.urls]
