@@ -1,4 +1,3 @@
-version: "3.7"
 services:
   api:
     build:
@@ -16,9 +15,6 @@ services:
       GUNICORN_WORKERS: 4
       GUNICORN_WORKER_CLASS: aiohttp.worker.GunicornUVLoopWebWorker
       GUNICORN_ENABLE_STDIO_INHERITANCE: "true"
-    depends_on:
-    - janusgraph-healthcheck
-    - memcached
     ports:
     - 9090:9090
     volumes:
@@ -52,9 +48,6 @@ services:
     ports:
     - 9200:9200
   janusgraph:
-    depends_on:
-    - scylla
-    - elasticsearch
     image: janusgraph/janusgraph:0.5.2
     ports:
     - 8182:8182
@@ -62,8 +55,6 @@ services:
     - ./janusgraph:/etc/opt/janusgraph:ro
   janusgraph-healthcheck:
     command: "-sSf --retry 60 --retry-delay 5 --retry-max-time 180 --retry-connrefused 'http://janusgraph:8182?gremlin=100-1'"
-    depends_on:
-    - janusgraph
     image: curlimages/curl:latest
   memcached:
     image: memcached:latest
