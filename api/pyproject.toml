@@ -25,12 +25,12 @@ dependencies = [
 
 [project.optional-dependencies]
 test = [
-  "lxml-stubs",
   "mypy",
   "pytest",
   "pytest-asyncio",
   "pytest-cov",
   "ruff",
+  "types-lxml",
   "types-tqdm",
 ]
 
@@ -38,6 +38,9 @@ test = [
 homepage = "https://github.com/josephine-wolf-oberholtzer/on-exactitude-in-science"
 documentation = "https://josephine-wolf-oberholtzer.github.io/on-exactitude-in-science"
 repository = "https://github.com/josephine-wolf-oberholtzer/on-exactitude-in-science"
+
+[tool.mypy]
+plugins = ["mypy_plugin_lxml.main"]
 
 [tool.pytest]
 addopts = ["-rf", "-vv"]

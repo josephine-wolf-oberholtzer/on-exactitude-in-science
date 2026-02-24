@@ -1,5 +1,4 @@
 from tqdm import tqdm
-from tqdm.utils import _unicode
 
 
 class TQDMK8S(tqdm):
@@ -8,7 +7,7 @@ class TQDMK8S(tqdm):
         fp_flush = getattr(fp, "flush", lambda: None)  # pragma: no cover
 
         def fp_write(s):
-            fp.write(_unicode(s))
+            fp.write(s)
             fp_flush()
 
         def print_status(s):
