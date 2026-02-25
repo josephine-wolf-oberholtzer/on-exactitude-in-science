@@ -18,6 +18,7 @@ dependencies = [
   "lxml",
   "sqlalchemy",
   "uqbar",
+  "uvicorn-worker",
   "uvloop",
 ]
 
