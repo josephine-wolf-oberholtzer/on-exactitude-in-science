@@ -16,6 +16,7 @@ dependencies = [
   "fastapi",
   "gunicorn",
   "lxml",
+  "psycopg2-binary",
   "sqlalchemy",
   "uqbar",
   "uvicorn-worker",

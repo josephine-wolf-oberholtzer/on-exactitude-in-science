@@ -1,8 +1,7 @@
-project = maps
 errors = E123,E203,E265,E266,E501,W503
 origin := $(shell git config --get remote.origin.url)
-formatPaths = ${project}/ tests/
-testPaths = ${project}/ tests/
+formatPaths = alembic/ src/ tests/
+testPaths = src/ tests/
 imageName = josephine-wolf-oberholtzer/on-exactitude-in-science-api
 gitCommit = $(shell git rev-parse HEAD)
 
@@ -32,7 +31,7 @@ clean:
 lint: reformat ruff-lint mypy ## Run all linters
 
 mypy:
-	mypy --ignore-missing-imports ${project}/
+	mypy --ignore-missing-imports src/
 
 pytest:
 	rm -Rf htmlcov/
@@ -40,7 +39,8 @@ pytest:
 		--cov-config=.coveragerc \
 		--cov-report=html \
 		--cov-report=term \
-		--cov=${project}/ \
+		--cov=src \
+		--cov=test \
 		-vv \
 		${testPaths}
 
