@@ -4,9 +4,9 @@ from pathlib import Path
 from maps import xml
 
 
-def test_get_artist_iterator():
+def test_iterate_artists():
     path = Path(__file__).parent / "data" / "discogs_test_artists.xml.gz"
-    iterator = xml.get_artist_iterator(path)
+    iterator = xml.iterate_artists(path)
     artist = next(iterator)
     assert artist == xml.Artist(
         entity_id=1,
@@ -19,9 +19,9 @@ def test_get_artist_iterator():
     )
 
 
-def test_get_company_iterator():
+def test_iterate_companies():
     path = Path(__file__).parent / "data" / "discogs_test_labels.xml.gz"
-    iterator = xml.get_company_iterator(path)
+    iterator = xml.iterate_companies(path)
     label = next(iterator)
     assert label == xml.Company(
         entity_id=1,
@@ -34,18 +34,18 @@ def test_get_company_iterator():
     )
 
 
-def test_get_master_iterator():
+def test_iterate_masters():
     path = Path(__file__).parent / "data" / "discogs_test_masters.xml.gz"
-    iterator = xml.get_master_iterator(path)
+    iterator = xml.iterate_masters(path)
     master = next(iterator)
     assert master == xml.Master(
         entity_id=18500, main_release_id=155102, name="New Soil"
     )
 
 
-def test_get_release_iterator():
+def test_iterate_releases():
     path = Path(__file__).parent / "data" / "discogs_test_releases.xml.gz"
-    iterator = xml.get_release_iterator(path)
+    iterator = xml.iterate_releases(path)
     release = next(iterator)
     assert release == xml.Release(
         entity_id=1,

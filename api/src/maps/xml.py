@@ -77,15 +77,6 @@ class Release:
     year: int | None = None
 
 
-def get_xml_path(directory_path: Path, tag: str) -> Path:
-    glob_string = "discogs_*_{}s.xml.gz".format(tag)
-    file_paths = list(directory_path.glob(glob_string))
-    if not file_paths:
-        raise FileNotFoundError
-    file_paths.sort(reverse=True)  # Sorting by timestamp descending
-    return file_paths[0]
-
-
 def iterate_xml(xml_path: Path, tag: str) -> Generator[lxml.etree._Element, None, None]:
     with gzip.GzipFile(xml_path, "r") as gzip_file:
         context = lxml.etree.iterparse(
@@ -111,6 +102,15 @@ def prettify(element: lxml.etree._Element) -> str:
     return reparsed.toprettyxml(indent=" " * 4)
 
 
+def get_xml_path(directory_path: Path, tag: str) -> Path:
+    glob_string = "discogs_*_{}s.xml.gz".format(tag)
+    file_paths = list(directory_path.glob(glob_string))
+    if not file_paths:
+        raise FileNotFoundError
+    file_paths.sort(reverse=True)  # Sorting by timestamp descending
+    return file_paths[0]
+
+
 def build_test_files(source_path: Path, target_path: Path, n: int = 10) -> None:
     for tag in ["artist", "label", "master", "release"]:
         source_file_path = get_xml_path(source_path, tag)
@@ -132,7 +132,101 @@ def find_list(element: lxml.etree._Element, name: str) -> Sequence[lxml.etree._E
     return list(elements)
 
 
-def get_artist_iterator(xml_path: Path) -> Generator[Artist, None, None]:
+def parse_roles(text: str) -> list[Role]:
+    def from_text(text):
+        name = ""
+        current_buffer = ""
+        details = []
+        had_detail = False
+        bracket_depth = 0
+        for character in text:
+            if character == "[":
+                bracket_depth += 1
+                if bracket_depth == 1 and not had_detail:
+                    name = current_buffer
+                    current_buffer = ""
+                    had_detail = True
+                elif 1 < bracket_depth:
+                    current_buffer += character
+            elif character == "]":
+                bracket_depth -= 1
+                if not bracket_depth:
+                    details.append(current_buffer)
+                    current_buffer = ""
+                else:
+                    current_buffer += character
+            else:
+                current_buffer += character
+        if current_buffer and not had_detail:
+            name = current_buffer
+        name = name.strip()
+        detail = ", ".join(_.strip() for _ in details)
+        return Role(name=name, detail=detail or None)
+
+    roles: list[Role] = []
+    if not text:
+        return roles
+    current_text = ""
+    bracket_depth = 0
+    for character in text:
+        if character == "[":
+            bracket_depth += 1
+        elif character == "]":
+            bracket_depth -= 1
+        elif not bracket_depth and character == ",":
+            current_text = current_text.strip()
+            if current_text:
+                roles.append(from_text(current_text))
+            current_text = ""
+            continue
+        current_text += character
+    current_text = current_text.strip()
+    if current_text:
+        roles.append(from_text(current_text))
+    return roles
+
+
+def parse_release_date(date_string: str) -> datetime.datetime | None:
+    # empty string
+    if not date_string:
+        return None
+    # yyyy-mm-dd
+    match = date_regex.match(date_string)
+    if match:
+        year, month, day = match.groups()
+        return validate_release_date(year, month, day)
+    # yyyymmdd
+    match = date_no_dashes_regex.match(date_string)
+    if match:
+        year, month, day = match.groups()
+        return validate_release_date(year, month, day)
+    # yyyy
+    match = year_regex.match(date_string)
+    if match:
+        year, month, day = match.group(), "1", "1"
+        return validate_release_date(year, month, day)
+    # other: "?", "????", "None", "Unknown"
+    return None
+
+
+def validate_release_date(year: str, month: str, day: str) -> datetime.datetime | None:
+    try:
+        year_ = int(year)
+        if (month_ := int(month)) < 1:
+            month_ = 1
+        if (day_ := int(day)) < 1:
+            day_ = 1
+        if 12 < month_:
+            day_, month_ = month_, day_
+        date = datetime.datetime(year_, month_, 1, 0, 0)
+        return date + datetime.timedelta(days=day_ - 1)
+    except ValueError:
+        traceback.print_exc()
+        print("BAD DATE:", year, month, day)
+        return None
+
+
+def iterate_artists(xml_path: Path) -> Generator[Artist, None, None]:
     for element in iterate_xml(xml_path, "artist"):
         artist = Artist(
             entity_id=int(element.findtext("id", "")), name=element.findtext("name", "")
@@ -160,7 +254,7 @@ def get_artist_iterator(xml_path: Path) -> Generator[Artist, None, None]:
         yield artist
 
 
-def get_company_iterator(xml_path: Path) -> Generator[Company, None, None]:
+def iterate_companies(xml_path: Path) -> Generator[Company, None, None]:
     for element in iterate_xml(xml_path, "label"):
         company = Company(
             entity_id=int(element.findtext("id", "")), name=element.findtext("name", "")
@@ -179,7 +273,7 @@ def get_company_iterator(xml_path: Path) -> Generator[Company, None, None]:
         yield company
 
 
-def get_master_iterator(xml_path: Path) -> Generator[Master, None, None]:
+def iterate_masters(xml_path: Path) -> Generator[Master, None, None]:
     for element in iterate_xml(xml_path, "master"):
         master = Master(
             entity_id=int(element.get("id") or ""),
@@ -189,7 +283,7 @@ def get_master_iterator(xml_path: Path) -> Generator[Master, None, None]:
         yield master
 
 
-def get_release_iterator(xml_path: Path) -> Generator[Release, None, None]:
+def iterate_releases(xml_path: Path) -> Generator[Release, None, None]:
     def get_artists(element) -> list[Artist]:
         artists: set[Artist] = set()
         for artist in find_list(element, "artists"):
@@ -323,97 +417,3 @@ def get_release_iterator(xml_path: Path) -> Generator[Release, None, None]:
             year=get_year(element),
         )
         yield release
-
-
-def parse_roles(text: str) -> list[Role]:
-    def from_text(text):
-        name = ""
-        current_buffer = ""
-        details = []
-        had_detail = False
-        bracket_depth = 0
-        for character in text:
-            if character == "[":
-                bracket_depth += 1
-                if bracket_depth == 1 and not had_detail:
-                    name = current_buffer
-                    current_buffer = ""
-                    had_detail = True
-                elif 1 < bracket_depth:
-                    current_buffer += character
-            elif character == "]":
-                bracket_depth -= 1
-                if not bracket_depth:
-                    details.append(current_buffer)
-                    current_buffer = ""
-                else:
-                    current_buffer += character
-            else:
-                current_buffer += character
-        if current_buffer and not had_detail:
-            name = current_buffer
-        name = name.strip()
-        detail = ", ".join(_.strip() for _ in details)
-        return Role(name=name, detail=detail or None)
-
-    roles: list[Role] = []
-    if not text:
-        return roles
-    current_text = ""
-    bracket_depth = 0
-    for character in text:
-        if character == "[":
-            bracket_depth += 1
-        elif character == "]":
-            bracket_depth -= 1
-        elif not bracket_depth and character == ",":
-            current_text = current_text.strip()
-            if current_text:
-                roles.append(from_text(current_text))
-            current_text = ""
-            continue
-        current_text += character
-    current_text = current_text.strip()
-    if current_text:
-        roles.append(from_text(current_text))
-    return roles
-
-
-def parse_release_date(date_string: str) -> datetime.datetime | None:
-    # empty string
-    if not date_string:
-        return None
-    # yyyy-mm-dd
-    match = date_regex.match(date_string)
-    if match:
-        year, month, day = match.groups()
-        return validate_release_date(year, month, day)
-    # yyyymmdd
-    match = date_no_dashes_regex.match(date_string)
-    if match:
-        year, month, day = match.groups()
-        return validate_release_date(year, month, day)
-    # yyyy
-    match = year_regex.match(date_string)
-    if match:
-        year, month, day = match.group(), "1", "1"
-        return validate_release_date(year, month, day)
-    # other: "?", "????", "None", "Unknown"
-    return None
-
-
-def validate_release_date(year: str, month: str, day: str) -> datetime.datetime | None:
-    try:
-        year_ = int(year)
-        if (month_ := int(month)) < 1:
-            month_ = 1
-        if (day_ := int(day)) < 1:
-            day_ = 1
-        if 12 < month_:
-            day_, month_ = month_, day_
-        date = datetime.datetime(year_, month_, 1, 0, 0)
-        return date + datetime.timedelta(days=day_ - 1)
-    except ValueError:
-        traceback.print_exc()
-        print("BAD DATE:", year, month, day)
-        return None
