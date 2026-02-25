@@ -8,17 +8,15 @@ version = "0.1.0"
 description = "On Exactitude in Science"
 license = {text = "MIT"}
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.14"
 dependencies = [
-  "aiodns",
-  "aiohttp-middlewares",
-  "aiohttp",
-  "aiomcache",
-  "goblin",
+  "alembic",
+  "asyncpg",
+  "click",
+  "fastapi",
   "gunicorn",
   "lxml",
-  "msgpack",
-  "tqdm",
+  "sqlalchemy",
   "uqbar",
   "uvloop",
 ]
@@ -44,14 +42,8 @@ plugins = ["mypy_plugin_lxml.main"]
 
 [tool.pytest]
 addopts = ["-rf", "-vv"]
-filterwarnings = [
-  "ignore::DeprecationWarning:aiogremlin.*",
-  "ignore::DeprecationWarning:aiohttp.*",
-  "ignore::DeprecationWarning:aiomcache.*",
-  "ignore::DeprecationWarning:asyncio.*",
-]
 log_format = "%(levelname)-8s %(name)s:%(filename)s:%(lineno)-4d %(message)s"
 
 [tool.ruff]
 line-length = 88
-target-version = "py311"
+target-version = "py314"

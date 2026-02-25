@@ -1,5 +1,5 @@
-DATASET_YEAR ?= 2020
-DATASET_MONTH ?= 10
+DATASET_YEAR ?= 2026
+DATASET_MONTH ?= 02
 DATASET_DAY ?= 01
 DATASET_TIMESTAMP := ${DATASET_YEAR}${DATASET_MONTH}${DATASET_DAY}
 LIMIT ?= 10000
@@ -7,10 +7,10 @@ WORKERS ?= 8
 
 fetch-dataset:
 	mkdir -p data/
-	curl --fail http://discogs-data.s3-us-west-2.amazonaws.com/data/${DATASET_YEAR}/discogs_${DATASET_TIMESTAMP}_artists.xml.gz > data/discogs_${DATASET_TIMESTAMP}_artists.xml.gz
-	curl --fail http://discogs-data.s3-us-west-2.amazonaws.com/data/${DATASET_YEAR}/discogs_${DATASET_TIMESTAMP}_labels.xml.gz > data/discogs_${DATASET_TIMESTAMP}_labels.xml.gz
-	curl --fail http://discogs-data.s3-us-west-2.amazonaws.com/data/${DATASET_YEAR}/discogs_${DATASET_TIMESTAMP}_masters.xml.gz > data/discogs_${DATASET_TIMESTAMP}_masters.xml.gz
-	curl --fail http://discogs-data.s3-us-west-2.amazonaws.com/data/${DATASET_YEAR}/discogs_${DATASET_TIMESTAMP}_releases.xml.gz > data/discogs_${DATASET_TIMESTAMP}_releases.xml.gz
+	curl --fail https://data.discogs.com/?download=data%2F${DATASET_YEAR}%2Fdiscogs_${DATASET_TIMESTAMP}_artists.xml.gz > data/discogs_${DATASET_TIMESTAMP}_artists.xml.gz
+	curl --fail https://data.discogs.com/?download=data%2F${DATASET_YEAR}%2Fdiscogs_${DATASET_TIMESTAMP}_labels.xml.gz > data/discogs_${DATASET_TIMESTAMP}_labels.xml.gz
+	curl --fail https://data.discogs.com/?download=data%2F${DATASET_YEAR}%2Fdiscogs_${DATASET_TIMESTAMP}_masters.xml.gz > data/discogs_${DATASET_TIMESTAMP}_masters.xml.gz
+	curl --fail https://data.discogs.com/?download=data%2F${DATASET_YEAR}%2Fdiscogs_${DATASET_TIMESTAMP}_releases.xml.gz > data/discogs_${DATASET_TIMESTAMP}_releases.xml.gz
 
 reset-janusgraph:
 	docker-compose stop

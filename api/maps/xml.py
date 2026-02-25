@@ -111,7 +111,7 @@ def prettify(element: lxml.etree._Element) -> str:
     return reparsed.toprettyxml(indent=" " * 4)
 
 
-def build_test_files(source_path: Path, target_path: Path, n=10):
+def build_test_files(source_path: Path, target_path: Path, n: int = 10) -> None:
     for tag in ["artist", "label", "master", "release"]:
         source_file_path = get_xml_path(source_path, tag)
         target_file_path = target_path / "discogs_test_{}s.xml.gz".format(tag)
@@ -189,7 +189,7 @@ def get_master_iterator(xml_path: Path) -> Generator[Master, None, None]:
         yield master
 
 
-def get_release_iterator(xml_path: Path):
+def get_release_iterator(xml_path: Path) -> Generator[Release, None, None]:
     def get_artists(element) -> list[Artist]:
         artists: set[Artist] = set()
         for artist in find_list(element, "artists"):
@@ -325,7 +325,7 @@ def get_release_iterator(xml_path: Path):
         yield release
 
 
-def parse_roles(text):
+def parse_roles(text: str) -> list[Role]:
     def from_text(text):
         name = ""
         current_buffer = ""
@@ -356,7 +356,7 @@ def parse_roles(text):
         detail = ", ".join(_.strip() for _ in details)
         return Role(name=name, detail=detail or None)
 
-    roles = []
+    roles: list[Role] = []
     if not text:
         return roles
     current_text = ""
@@ -379,7 +379,7 @@ def parse_roles(text):
     return roles
 
 
-def parse_release_date(date_string):
+def parse_release_date(date_string: str) -> datetime.datetime | None:
     # empty string
     if not date_string:
         return None
@@ -402,24 +402,18 @@ def parse_release_date(date_string):
     return None
 
 
-def validate_release_date(year, month, day):
+def validate_release_date(year: str, month: str, day: str) -> datetime.datetime | None:
     try:
-        year = int(year)
-        if month.isdigit():
-            month = int(month)
-        if month < 1:
-            month = 1
-        if day.isdigit():
-            day = int(day)
-        if day < 1:
-            day = 1
-        if 12 < month:
-            day, month = month, day
-        date = datetime.datetime(year, month, 1, 0, 0)
-        day_offset = day - 1
-        date = date + datetime.timedelta(days=day_offset)
+        year_ = int(year)
+        if (month_ := int(month)) < 1:
+            month_ = 1
+        if (day_ := int(day)) < 1:
+            day_ = 1
+        if 12 < month_:
+            day_, month_ = month_, day_
+        date = datetime.datetime(year_, month_, 1, 0, 0)
+        return date + datetime.timedelta(days=day_ - 1)
     except ValueError:
         traceback.print_exc()
         print("BAD DATE:", year, month, day)
-        date = None
-    return date
+        return None

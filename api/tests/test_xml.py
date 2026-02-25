@@ -5,7 +5,7 @@ from maps import xml
 
 
 def test_get_artist_iterator():
-    path = Path(__file__).parent / "discogs_test_artists.xml.gz"
+    path = Path(__file__).parent / "data" / "discogs_test_artists.xml.gz"
     iterator = xml.get_artist_iterator(path)
     artist = next(iterator)
     assert artist == xml.Artist(
@@ -20,7 +20,7 @@ def test_get_artist_iterator():
 
 
 def test_get_company_iterator():
-    path = Path(__file__).parent / "discogs_test_labels.xml.gz"
+    path = Path(__file__).parent / "data" / "discogs_test_labels.xml.gz"
     iterator = xml.get_company_iterator(path)
     label = next(iterator)
     assert label == xml.Company(
@@ -35,7 +35,7 @@ def test_get_company_iterator():
 
 
 def test_get_master_iterator():
-    path = Path(__file__).parent / "discogs_test_masters.xml.gz"
+    path = Path(__file__).parent / "data" / "discogs_test_masters.xml.gz"
     iterator = xml.get_master_iterator(path)
     master = next(iterator)
     assert master == xml.Master(
@@ -44,7 +44,7 @@ def test_get_master_iterator():
 
 
 def test_get_release_iterator():
-    path = Path(__file__).parent / "discogs_test_releases.xml.gz"
+    path = Path(__file__).parent / "data" / "discogs_test_releases.xml.gz"
     iterator = xml.get_release_iterator(path)
     release = next(iterator)
     assert release == xml.Release(
