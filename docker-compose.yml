@@ -1,8 +1,6 @@
 services:
   api:
     build:
-      cache_from:
-      - josiahwolfoberholtzer/on-exactitude-in-science-api:latest
       context: api
     command: gunicorn --conf gunicorn.conf.py maps.app:app
     environment:
@@ -27,3 +25,11 @@ services:
     - 8080:80
     volumes:
     - ./gui/dist:/var/www/html
+  postgres:
+    environment:
+      POSTGRES_DB: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_USER: postgres
+    image: postgres:18
+    ports:
+    - 5432:5432
