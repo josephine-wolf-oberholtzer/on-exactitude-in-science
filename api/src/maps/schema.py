@@ -8,12 +8,12 @@ from typing import Generator, Optional
 import lxml.etree
 
 from . import xml
-from .models import Labels, VertexDict
+from .models import Direction, EdgeDict, EdgeLabels, VertexDict, VertexLabels
 
 
 @dataclasses.dataclass(unsafe_hash=True)
 class Artist:
-    entity_id: int
+    id: int
     name: str
     aliases: list["Artist"] = dataclasses.field(
         default_factory=list, compare=False, hash=False
@@ -31,28 +31,28 @@ class Artist:
     @classmethod
     def from_element(cls, element: lxml.etree._Element) -> "Artist":
         artist = Artist(
-            entity_id=int(element.findtext("id", "")), name=element.findtext("name", "")
+            id=int(element.findtext("id", "")), name=element.findtext("name", "")
         )
         for subelement in xml.find_list(element, "aliases"):
             alias = Artist(
-                entity_id=int(subelement.get("id") or ""), name=subelement.text or ""
+                id=int(subelement.get("id") or ""), name=subelement.text or ""
             )
             artist.aliases.append(alias)
         for subelement in xml.find_list(element, "groups"):
             group = Artist(
-                entity_id=int(subelement.get("id") or ""), name=subelement.text or ""
+                id=int(subelement.get("id") or ""), name=subelement.text or ""
             )
             artist.groups.append(group)
         for subelement in xml.find_list(element, "members"):
             if subelement.tag == "id":
                 continue
             member = Artist(
-                entity_id=int(subelement.get("id") or ""), name=subelement.text or ""
+                id=int(subelement.get("id") or ""), name=subelement.text or ""
             )
             artist.members.append(member)
-        artist.aliases.sort(key=lambda x: x.entity_id)
-        artist.groups.sort(key=lambda x: x.entity_id)
-        artist.members.sort(key=lambda x: x.entity_id)
+        artist.aliases.sort(key=lambda x: x.id)
+        artist.groups.sort(key=lambda x: x.id)
+        artist.members.sort(key=lambda x: x.id)
         return artist
 
     @classmethod
@@ -60,20 +60,54 @@ class Artist:
         for element in xml.iterate_xml(xml_path, "artist"):
             yield cls.from_element(element)
 
-    def to_vertex_dict(self, dataset: datetime.date) -> VertexDict:
-        return {
-            "dataset": dataset,
-            "id": self.entity_id,
-            "index": 0,
-            "label": Labels.ARTIST,
-            "name": self.name,
-            "random": random.random(),
-        }
+    def to_edge_dicts(self, dataset: datetime.date) -> list[EdgeDict]:
+        return [
+            *(
+                EdgeDict(
+                    this_id=self.id,
+                    this_label=VertexLabels.ARTIST,
+                    this_index=0,
+                    that_id=alias.id,
+                    that_label=VertexLabels.ARTIST,
+                    that_index=0,
+                    name=EdgeLabels.ALIAS_OF,
+                    direction=bool(Direction.THIS_TO_THAT),
+                    dataset=dataset,
+                )
+                for alias in self.aliases
+            ),
+            *(
+                EdgeDict(
+                    this_id=self.id,
+                    this_label=VertexLabels.ARTIST,
+                    this_index=0,
+                    that_id=member.id,
+                    that_label=VertexLabels.ARTIST,
+                    that_index=0,
+                    name=EdgeLabels.MEMBER_OF,
+                    direction=bool(Direction.THAT_TO_THIS),
+                    dataset=dataset,
+                )
+                for member in self.members
+            ),
+        ]
+
+    def to_vertex_dicts(self, dataset: datetime.date) -> list[VertexDict]:
+        return [
+            VertexDict(
+                dataset=dataset,
+                id=self.id,
+                index=0,
+                label=VertexLabels.ARTIST,
+                name=self.name,
+                random=random.random(),
+            )
+        ]
 
 
 @dataclasses.dataclass(unsafe_hash=True)
 class Company:
-    entity_id: int
+    id: int
     name: str
     parent_company: Optional["Company"] = dataclasses.field(
         default=None, compare=False, hash=False
@@ -88,19 +122,19 @@ class Company:
     @classmethod
     def from_element(cls, element: lxml.etree._Element) -> "Company":
         company = Company(
-            entity_id=int(element.findtext("id", "")), name=element.findtext("name", "")
+            id=int(element.findtext("id", "")), name=element.findtext("name", "")
         )
         if (parent_company := element.find("parentLabel")) is not None:
             company.parent_company = Company(
-                entity_id=int(parent_company.get("id") or ""),
+                id=int(parent_company.get("id") or ""),
                 name=parent_company.text or "",
             )
         for subelement in xml.find_list(element, "sublabels"):
             subsidiary = Company(
-                entity_id=int(subelement.get("id") or ""), name=subelement.text or ""
+                id=int(subelement.get("id") or ""), name=subelement.text or ""
             )
             company.subsidiaries.append(subsidiary)
-        company.subsidiaries.sort(key=lambda x: x.entity_id)
+        company.subsidiaries.sort(key=lambda x: x.id)
         return company
 
     @classmethod
@@ -108,27 +142,47 @@ class Company:
         for element in xml.iterate_xml(xml_path, "label"):
             yield cls.from_element(element)
 
-    def to_vertex_dict(self, dataset: datetime.date) -> VertexDict:
-        return {
-            "dataset": dataset,
-            "id": self.entity_id,
-            "index": 0,
-            "label": Labels.COMPANY,
-            "name": self.name,
-            "random": random.random(),
-        }
+    def to_edge_dicts(self, dataset: datetime.date) -> list[EdgeDict]:
+        return [
+            *(
+                EdgeDict(
+                    this_id=self.id,
+                    this_label=VertexLabels.COMPANY,
+                    this_index=0,
+                    that_id=subsidiary.id,
+                    that_label=VertexLabels.COMPANY,
+                    that_index=0,
+                    name=EdgeLabels.SUBSIDIARY_OF,
+                    direction=bool(Direction.THAT_TO_THIS),
+                    dataset=dataset,
+                )
+                for subsidiary in self.subsidiaries
+            ),
+        ]
+
+    def to_vertex_dicts(self, dataset: datetime.date) -> list[VertexDict]:
+        return [
+            VertexDict(
+                dataset=dataset,
+                id=self.id,
+                index=0,
+                label=VertexLabels.COMPANY,
+                name=self.name,
+                random=random.random(),
+            )
+        ]
 
 
 @dataclasses.dataclass
 class Master:
-    entity_id: int
+    id: int
     main_release_id: int
     name: str
 
     @classmethod
     def from_element(cls, element: lxml.etree._Element) -> "Master":
         return Master(
-            entity_id=int(element.get("id") or ""),
+            id=int(element.get("id") or ""),
             name=element.findtext("title") or "",
             main_release_id=int(element.findtext("main_release") or ""),
         )
@@ -138,20 +192,25 @@ class Master:
         for element in xml.iterate_xml(xml_path, "master"):
             yield cls.from_element(element)
 
-    def to_vertex_dict(self, dataset: datetime.date) -> VertexDict:
-        return {
-            "dataset": dataset,
-            "id": self.entity_id,
-            "index": 0,
-            "label": Labels.MASTER,
-            "name": self.name,
-            "random": random.random(),
-        }
+    def to_edge_dicts(self, dataset: datetime.date) -> list[EdgeDict]:
+        return []
+
+    def to_vertex_dicts(self, dataset: datetime.date) -> list[VertexDict]:
+        return [
+            VertexDict(
+                dataset=dataset,
+                id=self.id,
+                index=0,
+                label=VertexLabels.MASTER,
+                name=self.name,
+                random=random.random(),
+            )
+        ]
 
 
 @dataclasses.dataclass
 class Release:
-    entity_id: int
+    id: int
     name: str
     artists: list[Artist] = dataclasses.field(default_factory=list)
     companies: list[Company] = dataclasses.field(default_factory=list)
@@ -174,25 +233,25 @@ class Release:
             for artist in xml.find_list(element, "artists"):
                 artists.add(
                     Artist(
-                        entity_id=int(artist.findtext("id") or ""),
+                        id=int(artist.findtext("id") or ""),
                         name=artist.findtext("name") or "",
                     )
                 )
-            return sorted(artists, key=lambda x: x.entity_id)
+            return sorted(artists, key=lambda x: x.id)
 
         def get_companies(element: lxml.etree._Element) -> list[Company]:
             companies: list[Company] = []
             for company in xml.find_list(element, "companies"):
                 companies.append(
                     Company(
-                        entity_id=int(company.findtext("id") or ""),
+                        id=int(company.findtext("id") or ""),
                         name=company.findtext("name") or "",
                         roles=xml.parse_roles(
                             company.findtext("entity_type_name") or ""
                         ),
                     )
                 )
-            return sorted(companies, key=lambda x: x.entity_id)
+            return sorted(companies, key=lambda x: x.id)
 
         def get_country(element: lxml.etree._Element) -> str | None:
             if (country := element.find("country")) is not None:
@@ -204,12 +263,12 @@ class Release:
             for extra_artist in xml.find_list(element, "extraartists"):
                 extra_artists.append(
                     Artist(
-                        entity_id=int(extra_artist.findtext("id") or ""),
+                        id=int(extra_artist.findtext("id") or ""),
                         name=extra_artist.findtext("name") or "",
                         roles=xml.parse_roles(extra_artist.findtext("role") or ""),
                     )
                 )
-            return sorted(extra_artists, key=lambda x: x.entity_id)
+            return sorted(extra_artists, key=lambda x: x.id)
 
         def get_formats(element: lxml.etree._Element) -> list[str]:
             formats: set[str] = set()
@@ -231,11 +290,11 @@ class Release:
             for label in xml.find_list(element, "labels"):
                 labels.add(
                     Company(
-                        entity_id=int(label.get("id") or ""),
+                        id=int(label.get("id") or ""),
                         name=label.get("name") or "",
                     )
                 )
-            return sorted(labels, key=lambda x: x.entity_id)
+            return sorted(labels, key=lambda x: x.id)
 
         def get_master_id(element: lxml.etree._Element) -> int | None:
             if (master_id := element.findtext("master_id")) is not None:
@@ -259,7 +318,7 @@ class Release:
                 position = (track.findtext("position") or "").strip() or str(i)
                 tracks.append(
                     Track(
-                        entity_id=release_id,
+                        id=release_id,
                         index=i,
                         name=track.findtext("title") or "",
                         position=position,
@@ -292,7 +351,7 @@ class Release:
             extra_artists=get_extra_artists(element),
             formats=get_formats(element),
             genres=get_genres(element),
-            entity_id=int(element.get("id") or ""),
+            id=int(element.get("id") or ""),
             is_main_release=bool(get_is_main_release(element)),
             labels=get_labels(element),
             master_id=get_master_id(element),
@@ -308,22 +367,47 @@ class Release:
         for element in xml.iterate_xml(xml_path, "release"):
             yield cls.from_element(element)
 
-    def to_vertex_dict(self, dataset: datetime.date) -> VertexDict:
-        return {
-            "country": self.country,
-            "dataset": dataset,
-            "formats": self.formats,
-            "genres": self.genres,
-            "id": self.entity_id,
-            "index": 0,
-            "label": Labels.RELEASE,
-            "name": self.name,
-            "primacy": self.is_main_release,
-            "random": random.random(),
-            "styles": self.styles,
-            "videos": self.videos,
-            "year": self.year,
-        }
+    def to_edge_dicts(self, dataset: datetime.date) -> list[EdgeDict]:
+        return []
+
+    def to_vertex_dicts(self, dataset: datetime.date) -> list[VertexDict]:
+        return [
+            VertexDict(
+                country=self.country,
+                dataset=dataset,
+                formats=self.formats,
+                genres=self.genres,
+                id=self.id,
+                index=0,
+                label=VertexLabels.RELEASE,
+                name=self.name,
+                primacy=self.is_main_release,
+                random=random.random(),
+                styles=self.styles,
+                videos=self.videos,
+                year=self.year,
+            ),
+            # and the tracks
+            *(
+                VertexDict(
+                    country=self.country,
+                    dataset=dataset,
+                    formats=self.formats,
+                    genres=self.genres,
+                    id=self.id,
+                    index=track.index,
+                    label=VertexLabels.TRACK,
+                    name=track.name,
+                    position=track.position,
+                    primacy=self.is_main_release,
+                    random=random.random(),
+                    styles=self.styles,
+                    videos=self.videos,
+                    year=self.year,
+                )
+                for track in self.tracks
+            ),
+        ]
 
 
 @dataclasses.dataclass
@@ -334,20 +418,9 @@ class Role:
 
 @dataclasses.dataclass
 class Track:
-    entity_id: int
+    id: int
     name: str
     index: int
     position: str
     artists: list[Artist] = dataclasses.field(default_factory=list)
     extra_artists: list[Artist] = dataclasses.field(default_factory=list)
-
-    def to_vertex_dict(self, dataset: datetime.date) -> VertexDict:
-        return {
-            "dataset": dataset,
-            "id": self.entity_id,
-            "index": self.index,
-            "label": Labels.TRACK,
-            "position": self.position,
-            "name": self.name,
-            "random": random.random(),
-        }

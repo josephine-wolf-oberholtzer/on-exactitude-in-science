@@ -7,12 +7,27 @@ from sqlalchemy.dialects.postgresql import ARRAY, DATE
 from sqlalchemy.orm import DeclarativeBase, Mapped, MappedAsDataclass, mapped_column
 
 
-class Labels(enum.IntEnum):
+class VertexLabels(enum.IntEnum):
     ARTIST = 0
     COMPANY = 1
     MASTER = 2
     RELEASE = 3
     TRACK = 4
+
+
+class EdgeLabels(enum.StrEnum):
+    ALIAS_OF = "Alias Of"
+    INCLUDES = "Includes"
+    MEMBER_OF = "Member Of"
+    RELEASED = "Released"
+    RELEASED_ON = "Released On"
+    SUBRELEASE_OF = "Subrelease Of"
+    SUBSIDIARY_OF = "Subsidiary Of"
+
+
+class Direction(enum.IntEnum):
+    THIS_TO_THAT = 0
+    THAT_TO_THIS = 1
 
 
 class Base(MappedAsDataclass, DeclarativeBase):
@@ -31,7 +46,7 @@ class Vertex(Base):
     __tablename__ = "vertices"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    label: Mapped[Labels] = mapped_column(primary_key=True)
+    label: Mapped[VertexLabels] = mapped_column(primary_key=True)
     index: Mapped[int] = mapped_column(primary_key=True)
 
     name: Mapped[str]
@@ -56,11 +71,11 @@ class Edge(Base):
     __tablename__ = "edges"
 
     this_id: Mapped[int] = mapped_column(primary_key=True)
-    this_label: Mapped[Labels] = mapped_column(primary_key=True)
+    this_label: Mapped[VertexLabels] = mapped_column(primary_key=True)
     this_index: Mapped[int] = mapped_column(primary_key=True)
 
     that_id: Mapped[int] = mapped_column(primary_key=True)
-    that_label: Mapped[Labels] = mapped_column(primary_key=True)
+    that_label: Mapped[VertexLabels] = mapped_column(primary_key=True)
     that_index: Mapped[int] = mapped_column(primary_key=True)
 
     direction: Mapped[bool] = mapped_column(primary_key=True)
@@ -80,7 +95,7 @@ class VertexDict(TypedDict):
     genres: NotRequired[list[str] | None]
     id: int
     index: int
-    label: Labels
+    label: VertexLabels
     name: str
     position: NotRequired[str | None]
     primacy: NotRequired[bool | None]
@@ -95,12 +110,15 @@ class EdgeDict(TypedDict):
     For use in typing bulk upsert statements.
     """
 
-    dataset: datetime.date
-    direction: bool
-    name: str
-    that_id: int
-    that_index: int
-    that_label: Labels
     this_id: int
+    this_label: VertexLabels
     this_index: int
-    this_label: Labels
+
+    that_id: int
+    that_label: VertexLabels
+    that_index: int
+
+    name: str
+    direction: bool
+
+    dataset: datetime.date
