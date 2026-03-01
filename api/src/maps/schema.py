@@ -1,6 +1,5 @@
 import dataclasses
 import datetime
-import json
 import random
 from pathlib import Path
 from typing import Generator, Optional
@@ -8,7 +7,7 @@ from typing import Generator, Optional
 import lxml.etree
 
 from . import xml
-from .models import Direction, EdgeDict, EdgeLabels, VertexDict, VertexLabels
+from .models import Direction, EdgeDict, EdgeLabels, VertexDict, VertexLabels, VideoDict
 
 
 @dataclasses.dataclass(unsafe_hash=True)
@@ -293,7 +292,7 @@ class Release(Entity):
     master_id: int | None = None
     styles: list[str] = dataclasses.field(default_factory=list)
     tracks: list[Track] = dataclasses.field(default_factory=list)
-    videos: str | None = None
+    videos: list[VideoDict] | None = None
     year: int | None = None
 
     @classmethod
@@ -402,15 +401,14 @@ class Release(Entity):
                 )
             return tracks
 
-        def get_videos(element: lxml.etree._Element) -> str | None:
-            videos: list[dict] = []
+        def get_videos(element: lxml.etree._Element) -> list[VideoDict] | None:
+            videos: list[VideoDict] = []
             for video in xml.find_list(element, "videos"):
-                title = video.findtext("title") or ""
+                title = video.findtext("title")
                 url = video.get("src")
-                videos.append({"title": title, "url": url})
-            if videos:
-                return json.dumps(videos)
-            return None
+                if url and title:
+                    videos.append({"title": title, "url": url})
+            return None or videos
 
         def get_year(element: lxml.etree._Element) -> int | None:
             if (released := element.findtext("released")) is not None:

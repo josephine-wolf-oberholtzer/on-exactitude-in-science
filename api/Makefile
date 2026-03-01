@@ -40,7 +40,7 @@ pytest:
 		--cov-report=html \
 		--cov-report=term \
 		--cov=src \
-		--cov=test \
+		--cov=tests \
 		-vv \
 		${testPaths}
 

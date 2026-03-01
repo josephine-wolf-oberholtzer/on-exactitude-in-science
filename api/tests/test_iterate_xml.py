@@ -1,4 +1,3 @@
-import json
 from pathlib import Path
 
 from maps import schema
@@ -81,33 +80,31 @@ def test_iterate_releases() -> None:
             schema.Track(id=1, index=5, name="Norrmalm", position="C2"),
             schema.Track(id=1, index=6, name="Gamla Stan", position="D"),
         ],
-        videos=json.dumps(
-            [
-                {
-                    "title": "The Persuader - Östermalm",
-                    "url": "https://www.youtube.com/watch?v=MpmbntGDyNE",
-                },
-                {
-                    "title": "The Persuader - Vasastaden",
-                    "url": "https://www.youtube.com/watch?v=Cawyll0pOI4",
-                },
-                {
-                    "title": "The Persuader - Kungsholmen",
-                    "url": "https://www.youtube.com/watch?v=XExCZfMCXdo",
-                },
-                {
-                    "title": "The Persuader - Södermalm",
-                    "url": "https://www.youtube.com/watch?v=WDZqiENap_U",
-                },
-                {
-                    "title": "The Persuader - Norrmalm",
-                    "url": "https://www.youtube.com/watch?v=EBBHR3EMN50",
-                },
-                {
-                    "title": "The Persuader - Gamla Stan",
-                    "url": "https://www.youtube.com/watch?v=afMHNll9EVM",
-                },
-            ]
-        ),
+        videos=[
+            {
+                "title": "The Persuader - Östermalm",
+                "url": "https://www.youtube.com/watch?v=MpmbntGDyNE",
+            },
+            {
+                "title": "The Persuader - Vasastaden",
+                "url": "https://www.youtube.com/watch?v=Cawyll0pOI4",
+            },
+            {
+                "title": "The Persuader - Kungsholmen",
+                "url": "https://www.youtube.com/watch?v=XExCZfMCXdo",
+            },
+            {
+                "title": "The Persuader - Södermalm",
+                "url": "https://www.youtube.com/watch?v=WDZqiENap_U",
+            },
+            {
+                "title": "The Persuader - Norrmalm",
+                "url": "https://www.youtube.com/watch?v=EBBHR3EMN50",
+            },
+            {
+                "title": "The Persuader - Gamla Stan",
+                "url": "https://www.youtube.com/watch?v=afMHNll9EVM",
+            },
+        ],
         year=1999,
     )

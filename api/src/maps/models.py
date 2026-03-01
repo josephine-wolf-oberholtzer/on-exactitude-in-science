@@ -3,7 +3,7 @@ import enum
 from typing import NotRequired, Optional, TypedDict
 
 from sqlalchemy import Index, String, func
-from sqlalchemy.dialects.postgresql import ARRAY, DATE, SMALLINT
+from sqlalchemy.dialects.postgresql import ARRAY, DATE, JSONB, SMALLINT
 from sqlalchemy.orm import DeclarativeBase, Mapped, MappedAsDataclass, mapped_column
 
 
@@ -25,19 +25,15 @@ class EdgeLabels(enum.StrEnum):
     SUBSIDIARY_OF = "Subsidiary Of"
 
 
-"""
-# OK, but what if it looked like this:
 class Direction(enum.IntEnum):
     THIS_TO_THAT = -1
     BIDIRECTIONAL = 0
     THAT_TO_THIS = 1
-"""
 
 
-class Direction(enum.IntEnum):
-    THIS_TO_THAT = -1
-    BIDIRECTIONAL = 0
-    THAT_TO_THIS = 1
+class VideoDict(TypedDict):
+    title: str
+    url: str
 
 
 class Base(MappedAsDataclass, DeclarativeBase):
@@ -69,7 +65,7 @@ class Vertex(Base):
     position: Mapped[Optional[str]]
     primacy: Mapped[Optional[bool]]
     styles: Mapped[Optional[list[str]]] = mapped_column(ARRAY(String))
-    videos: Mapped[Optional[list[str]]] = mapped_column(ARRAY(String))
+    videos: Mapped[Optional[list[VideoDict]]] = mapped_column(JSONB)
     year: Mapped[Optional[int]]
 
     __table_args__ = (
@@ -119,7 +115,7 @@ class VertexDict(TypedDict):
     primacy: NotRequired[bool | None]
     random: float
     styles: NotRequired[list[str] | None]
-    videos: NotRequired[str | None]
+    videos: NotRequired[list[VideoDict] | None]
     year: NotRequired[int | None]
 
 
