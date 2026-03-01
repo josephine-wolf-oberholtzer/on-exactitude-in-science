@@ -2,8 +2,8 @@ import datetime
 import enum
 from typing import NotRequired, Optional, TypedDict
 
-from sqlalchemy import String
-from sqlalchemy.dialects.postgresql import ARRAY, DATE
+from sqlalchemy import Index, String, func
+from sqlalchemy.dialects.postgresql import ARRAY, DATE, SMALLINT
 from sqlalchemy.orm import DeclarativeBase, Mapped, MappedAsDataclass, mapped_column
 
 
@@ -17,16 +17,26 @@ class VertexLabels(enum.IntEnum):
 
 class EdgeLabels(enum.StrEnum):
     ALIAS_OF = "Alias Of"
-    INCLUDES = "Includes"
+    INCLUDED_ON = "Included On"
     MEMBER_OF = "Member Of"
-    RELEASED = "Released"
+    RELEASED_BY = "Released By"
     RELEASED_ON = "Released On"
     SUBRELEASE_OF = "Subrelease Of"
     SUBSIDIARY_OF = "Subsidiary Of"
 
 
+"""
+# OK, but what if it looked like this:
 class Direction(enum.IntEnum):
-    THIS_TO_THAT = 0
+    THIS_TO_THAT = -1
+    BIDIRECTIONAL = 0
+    THAT_TO_THIS = 1
+"""
+
+
+class Direction(enum.IntEnum):
+    THIS_TO_THAT = -1
+    BIDIRECTIONAL = 0
     THAT_TO_THIS = 1
 
 
@@ -46,10 +56,10 @@ class Vertex(Base):
     __tablename__ = "vertices"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    label: Mapped[VertexLabels] = mapped_column(primary_key=True)
-    index: Mapped[int] = mapped_column(primary_key=True)
+    label: Mapped[VertexLabels] = mapped_column(SMALLINT, primary_key=True)
+    index: Mapped[int] = mapped_column(SMALLINT, primary_key=True)
 
-    name: Mapped[str]
+    name: Mapped[str] = mapped_column(String)
     random: Mapped[float]
     dataset: Mapped[datetime.date] = mapped_column(DATE)
 
@@ -62,6 +72,14 @@ class Vertex(Base):
     videos: Mapped[Optional[list[str]]] = mapped_column(ARRAY(String))
     year: Mapped[Optional[int]]
 
+    __table_args__ = (
+        Index(
+            "ix_vertices_name_ts_vector",
+            func.to_tsvector("english", name),
+            postgresql_using="gin",
+        ),
+    )
+
 
 class Edge(Base):
     """
@@ -71,14 +89,14 @@ class Edge(Base):
     __tablename__ = "edges"
 
     this_id: Mapped[int] = mapped_column(primary_key=True)
-    this_label: Mapped[VertexLabels] = mapped_column(primary_key=True)
-    this_index: Mapped[int] = mapped_column(primary_key=True)
+    this_label: Mapped[VertexLabels] = mapped_column(SMALLINT, primary_key=True)
+    this_index: Mapped[int] = mapped_column(SMALLINT, primary_key=True)
 
     that_id: Mapped[int] = mapped_column(primary_key=True)
-    that_label: Mapped[VertexLabels] = mapped_column(primary_key=True)
-    that_index: Mapped[int] = mapped_column(primary_key=True)
+    that_label: Mapped[VertexLabels] = mapped_column(SMALLINT, primary_key=True)
+    that_index: Mapped[int] = mapped_column(SMALLINT, primary_key=True)
 
-    direction: Mapped[bool] = mapped_column(primary_key=True)
+    direction: Mapped[int] = mapped_column(SMALLINT, primary_key=True)
     name: Mapped[str] = mapped_column(primary_key=True)
 
     dataset: Mapped[datetime.date] = mapped_column(DATE)
@@ -113,12 +131,9 @@ class EdgeDict(TypedDict):
     this_id: int
     this_label: VertexLabels
     this_index: int
-
     that_id: int
     that_label: VertexLabels
     that_index: int
-
     name: str
-    direction: bool
-
+    direction: int
     dataset: datetime.date

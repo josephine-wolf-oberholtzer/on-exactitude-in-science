@@ -16,7 +16,24 @@ date_no_dashes_regex = re.compile(r"^(\d{4})(\d{2})(\d{2})$")
 year_regex = re.compile(r"^\d\d\d\d$")
 
 
+def get_xml_path(directory_path: Path, tag: str) -> Path:
+    """
+    Given a directory and an XML tag name, find a matching GZIP'd XML archive.
+    """
+    glob_string = f"discogs_*_{tag}s.xml.gz"
+    file_paths = list(directory_path.glob(glob_string))
+    if not file_paths:
+        raise FileNotFoundError
+    file_paths.sort(reverse=True)  # Sorting by timestamp descending
+    return file_paths[0]
+
+
 def iterate_xml(xml_path: Path, tag: str) -> Generator[lxml.etree._Element, None, None]:
+    """
+    Iterate elements with ``tag`` from a GZIP'd XML archive.
+
+    Do not unpack the entire archive.
+    """
     with gzip.GzipFile(xml_path, "r") as gzip_file:
         context = lxml.etree.iterparse(
             cast(IO[Any], gzip_file), events=["start", "end"]
@@ -36,21 +53,19 @@ def iterate_xml(xml_path: Path, tag: str) -> Generator[lxml.etree._Element, None
 
 
 def prettify(element: lxml.etree._Element) -> str:
+    """
+    Generate a pretty-printable representation of an XML element.
+    """
     string = lxml.etree.tostring(element, encoding="utf-8")
     reparsed = minidom.parseString(string)
     return reparsed.toprettyxml(indent=" " * 4)
 
 
-def get_xml_path(directory_path: Path, tag: str) -> Path:
-    glob_string = f"discogs_*_{tag}s.xml.gz"
-    file_paths = list(directory_path.glob(glob_string))
-    if not file_paths:
-        raise FileNotFoundError
-    file_paths.sort(reverse=True)  # Sorting by timestamp descending
-    return file_paths[0]
-
-
 def build_test_files(source_path: Path, target_path: Path, n: int = 10) -> None:
+    """
+    Given a source path to real GZIP'd XML archives, generate test archives
+    with up to ``n`` elements each.
+    """
     for tag in ["artist", "label", "master", "release"]:
         source_file_path = get_xml_path(source_path, tag)
         target_file_path = target_path / f"discogs_test_{tag}s.xml.gz"
@@ -66,12 +81,21 @@ def build_test_files(source_path: Path, target_path: Path, n: int = 10) -> None:
 
 
 def find_list(element: lxml.etree._Element, name: str) -> Sequence[lxml.etree._Element]:
+    """
+    For type-safety, return the children of a found element or an empty list.
+
+    Reduces the number of ``is not None`` checks in our XML parsing.
+    """
     if (elements := element.find(name)) is None:
         return []
     return list(elements)
 
 
 def parse_roles(text: str) -> list["Role"]:
+    """
+    Attempt to parse a string into a list of role entities.
+    """
+
     from .schema import Role
 
     def from_text(text):
@@ -127,41 +151,47 @@ def parse_roles(text: str) -> list["Role"]:
     return roles
 
 
-def parse_release_date(date_string: str) -> datetime.datetime | None:
+def parse_release_date(text: str) -> datetime.datetime | None:
+    """
+    Attempt to parse a string into a Python datetime object or None.
+    """
+
+    def validate_release_date(
+        year: str, month: str, day: str
+    ) -> datetime.datetime | None:
+        try:
+            year_ = int(year)
+            if (month_ := int(month)) < 1:
+                month_ = 1
+            if (day_ := int(day)) < 1:
+                day_ = 1
+            if 12 < month_:
+                day_, month_ = month_, day_
+            date = datetime.datetime(year_, month_, 1, 0, 0)
+            return date + datetime.timedelta(days=day_ - 1)
+        except ValueError:
+            traceback.print_exc()
+            print("BAD DATE:", year, month, day)
+            return None
+
     # empty string
-    if not date_string:
+    if not text:
         return None
+
     # yyyy-mm-dd
-    match = date_regex.match(date_string)
+    match = date_regex.match(text)
     if match:
         year, month, day = match.groups()
         return validate_release_date(year, month, day)
     # yyyymmdd
-    match = date_no_dashes_regex.match(date_string)
+    match = date_no_dashes_regex.match(text)
     if match:
         year, month, day = match.groups()
         return validate_release_date(year, month, day)
     # yyyy
-    match = year_regex.match(date_string)
+    match = year_regex.match(text)
     if match:
         year, month, day = match.group(), "1", "1"
         return validate_release_date(year, month, day)
     # other: "?", "????", "None", "Unknown"
     return None
-
-
-def validate_release_date(year: str, month: str, day: str) -> datetime.datetime | None:
-    try:
-        year_ = int(year)
-        if (month_ := int(month)) < 1:
-            month_ = 1
-        if (day_ := int(day)) < 1:
-            day_ = 1
-        if 12 < month_:
-            day_, month_ = month_, day_
-        date = datetime.datetime(year_, month_, 1, 0, 0)
-        return date + datetime.timedelta(days=day_ - 1)
-    except ValueError:
-        traceback.print_exc()
-        print("BAD DATE:", year, month, day)
-        return None

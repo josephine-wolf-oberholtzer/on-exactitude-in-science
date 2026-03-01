@@ -12,9 +12,40 @@ from .models import Direction, EdgeDict, EdgeLabels, VertexDict, VertexLabels
 
 
 @dataclasses.dataclass(unsafe_hash=True)
-class Artist:
+class Entity:
+    """
+    An entity base class.
+    """
+
     id: int
     name: str
+
+    def build_edge_dict(
+        self, that: "Entity", name: str, direction: Direction, dataset: datetime.date
+    ) -> EdgeDict:
+        return EdgeDict(
+            this_id=self.id,
+            this_label=self.label,
+            this_index=int(getattr(self, "index")),
+            that_id=that.id,
+            that_label=that.label,
+            that_index=int(getattr(that, "index")),
+            name=name,
+            direction=direction,
+            dataset=dataset,
+        )
+
+    @property
+    def label(self) -> VertexLabels:
+        raise NotImplementedError
+
+
+@dataclasses.dataclass(unsafe_hash=True)
+class Artist(Entity):
+    """
+    An artist entity.
+    """
+
     aliases: list["Artist"] = dataclasses.field(
         default_factory=list, compare=False, hash=False
     )
@@ -30,6 +61,9 @@ class Artist:
 
     @classmethod
     def from_element(cls, element: lxml.etree._Element) -> "Artist":
+        """
+        Instantiate an artist entity from an XML element.
+        """
         artist = Artist(
             id=int(element.findtext("id", "")), name=element.findtext("name", "")
         )
@@ -57,42 +91,41 @@ class Artist:
 
     @classmethod
     def iterate_xml(cls, xml_path: Path) -> Generator["Artist", None, None]:
+        """
+        Iterate artist entities from an XML archive.
+        """
         for element in xml.iterate_xml(xml_path, "artist"):
             yield cls.from_element(element)
 
     def to_edge_dicts(self, dataset: datetime.date) -> list[EdgeDict]:
+        """
+        Generate edge dicts for bulk upsertion into the database.
+        """
         return [
             *(
-                EdgeDict(
-                    this_id=self.id,
-                    this_label=VertexLabels.ARTIST,
-                    this_index=0,
-                    that_id=alias.id,
-                    that_label=VertexLabels.ARTIST,
-                    that_index=0,
-                    name=EdgeLabels.ALIAS_OF,
-                    direction=bool(Direction.THIS_TO_THAT),
+                self.build_edge_dict(
                     dataset=dataset,
+                    direction=Direction.BIDIRECTIONAL,
+                    name=EdgeLabels.ALIAS_OF,
+                    that=alias,
                 )
                 for alias in self.aliases
             ),
             *(
-                EdgeDict(
-                    this_id=self.id,
-                    this_label=VertexLabels.ARTIST,
-                    this_index=0,
-                    that_id=member.id,
-                    that_label=VertexLabels.ARTIST,
-                    that_index=0,
-                    name=EdgeLabels.MEMBER_OF,
-                    direction=bool(Direction.THAT_TO_THIS),
+                member.build_edge_dict(
                     dataset=dataset,
+                    direction=Direction.THIS_TO_THAT,
+                    name=EdgeLabels.MEMBER_OF,
+                    that=self,
                 )
                 for member in self.members
             ),
         ]
 
     def to_vertex_dicts(self, dataset: datetime.date) -> list[VertexDict]:
+        """
+        Generate vertex dicts for bulk upsertion into the database.
+        """
         return [
             VertexDict(
                 dataset=dataset,
@@ -104,11 +137,17 @@ class Artist:
             )
         ]
 
+    @property
+    def label(self) -> VertexLabels:
+        return VertexLabels.ARTIST
+
 
 @dataclasses.dataclass(unsafe_hash=True)
-class Company:
-    id: int
-    name: str
+class Company(Entity):
+    """
+    A company entity.
+    """
+
     parent_company: Optional["Company"] = dataclasses.field(
         default=None, compare=False, hash=False
     )
@@ -121,6 +160,9 @@ class Company:
 
     @classmethod
     def from_element(cls, element: lxml.etree._Element) -> "Company":
+        """
+        Instantiate a company entity from an XML element.
+        """
         company = Company(
             id=int(element.findtext("id", "")), name=element.findtext("name", "")
         )
@@ -139,28 +181,32 @@ class Company:
 
     @classmethod
     def iterate_xml(cls, xml_path: Path) -> Generator["Company", None, None]:
+        """
+        Iterate master entities from an XML archive.
+        """
         for element in xml.iterate_xml(xml_path, "label"):
             yield cls.from_element(element)
 
     def to_edge_dicts(self, dataset: datetime.date) -> list[EdgeDict]:
+        """
+        Generate edge dicts for bulk upsertion into the database.
+        """
         return [
             *(
-                EdgeDict(
-                    this_id=self.id,
-                    this_label=VertexLabels.COMPANY,
-                    this_index=0,
-                    that_id=subsidiary.id,
-                    that_label=VertexLabels.COMPANY,
-                    that_index=0,
-                    name=EdgeLabels.SUBSIDIARY_OF,
-                    direction=bool(Direction.THAT_TO_THIS),
+                subsidiary.build_edge_dict(
                     dataset=dataset,
+                    direction=Direction.THIS_TO_THAT,
+                    name=EdgeLabels.SUBSIDIARY_OF,
+                    that=self,
                 )
                 for subsidiary in self.subsidiaries
             ),
         ]
 
     def to_vertex_dicts(self, dataset: datetime.date) -> list[VertexDict]:
+        """
+        Generate vertex dicts for bulk upsertion into the database.
+        """
         return [
             VertexDict(
                 dataset=dataset,
@@ -172,15 +218,27 @@ class Company:
             )
         ]
 
+    @property
+    def label(self) -> VertexLabels:
+        return VertexLabels.COMPANY
+
 
 @dataclasses.dataclass
-class Master:
-    id: int
+class Master(Entity):
+    """
+    A master entity.
+
+    Masters are the "platonic ideal" of a release, allowing for the correlation
+    together of multiple releases.
+    """
+
     main_release_id: int
-    name: str
 
     @classmethod
     def from_element(cls, element: lxml.etree._Element) -> "Master":
+        """
+        Instantiate a master entity from an XML element.
+        """
         return Master(
             id=int(element.get("id") or ""),
             name=element.findtext("title") or "",
@@ -189,6 +247,9 @@ class Master:
 
     @classmethod
     def iterate_xml(cls, xml_path: Path) -> Generator["Master", None, None]:
+        """
+        Iterate master entities from an XML archive.
+        """
         for element in xml.iterate_xml(xml_path, "master"):
             yield cls.from_element(element)
 
@@ -196,6 +257,9 @@ class Master:
         return []
 
     def to_vertex_dicts(self, dataset: datetime.date) -> list[VertexDict]:
+        """
+        Generate vertex dicts for bulk upsertion into the database.
+        """
         return [
             VertexDict(
                 dataset=dataset,
@@ -207,11 +271,17 @@ class Master:
             )
         ]
 
+    @property
+    def label(self) -> VertexLabels:
+        return VertexLabels.MASTER
+
 
 @dataclasses.dataclass
-class Release:
-    id: int
-    name: str
+class Release(Entity):
+    """
+    A release entity.
+    """
+
     artists: list[Artist] = dataclasses.field(default_factory=list)
     companies: list[Company] = dataclasses.field(default_factory=list)
     country: str | None = None
@@ -228,6 +298,10 @@ class Release:
 
     @classmethod
     def from_element(cls, element: lxml.etree._Element) -> "Release":
+        """
+        Instantiate an release entity from an XML element.
+        """
+
         def get_artists(element: lxml.etree._Element) -> list[Artist]:
             artists: set[Artist] = set()
             for artist in xml.find_list(element, "artists"):
@@ -364,14 +438,102 @@ class Release:
 
     @classmethod
     def iterate_xml(cls, xml_path: Path) -> Generator["Release", None, None]:
+        """
+        Iterate release entities from an XML archive.
+        """
         for element in xml.iterate_xml(xml_path, "release"):
             yield cls.from_element(element)
 
     def to_edge_dicts(self, dataset: datetime.date) -> list[EdgeDict]:
-        return []
+        """
+        Generate edge dicts for bulk upsertion into the database.
+        """
+        edge_dicts: list[EdgeDict] = [
+            *(
+                self.build_edge_dict(
+                    dataset=dataset,
+                    direction=Direction.THIS_TO_THAT,
+                    name=EdgeLabels.RELEASED_BY,
+                    that=artist,
+                )
+                for artist in self.artists
+            ),
+            *(
+                self.build_edge_dict(
+                    dataset=dataset,
+                    direction=Direction.THIS_TO_THAT,
+                    name=EdgeLabels.RELEASED_ON,
+                    that=label,
+                )
+                for label in self.labels
+            ),
+            *(
+                extra_artist.build_edge_dict(
+                    that=self,
+                    name=role.name,
+                    direction=Direction.THIS_TO_THAT,
+                    dataset=dataset,
+                )
+                for extra_artist in self.extra_artists
+                for role in extra_artist.roles
+            ),
+            *(
+                company.build_edge_dict(
+                    that=self,
+                    name=role.name,
+                    direction=Direction.THIS_TO_THAT,
+                    dataset=dataset,
+                )
+                for company in self.companies
+                for role in company.roles
+            ),
+        ]
+        if self.master_id is not None:
+            edge_dicts.append(
+                self.build_edge_dict(
+                    dataset=dataset,
+                    direction=Direction.THIS_TO_THAT,
+                    name="Subrelease Of",
+                    that=Master(id=self.master_id, main_release_id=-1, name=""),
+                )
+            )
+        for track in self.tracks:
+            edge_dicts.extend(
+                [
+                    track.build_edge_dict(
+                        dataset=dataset,
+                        direction=Direction.THIS_TO_THAT,
+                        name=EdgeLabels.INCLUDED_ON,
+                        that=self,
+                    ),
+                    *(
+                        track.build_edge_dict(
+                            that=artist,
+                            name=EdgeLabels.RELEASED_BY,
+                            direction=Direction.THIS_TO_THAT,
+                            dataset=dataset,
+                        )
+                        for artist in track.artists
+                    ),
+                    *(
+                        extra_artist.build_edge_dict(
+                            that=track,
+                            name=role.name,
+                            direction=Direction.THIS_TO_THAT,
+                            dataset=dataset,
+                        )
+                        for extra_artist in track.extra_artists
+                        for role in extra_artist.roles
+                    ),
+                ]
+            )
+        return edge_dicts
 
     def to_vertex_dicts(self, dataset: datetime.date) -> list[VertexDict]:
-        return [
+        """
+        Generate vertex dicts for bulk upsertion into the database.
+        """
+        vertex_dicts = [
             VertexDict(
                 country=self.country,
                 dataset=dataset,
@@ -381,13 +543,12 @@ class Release:
                 index=0,
                 label=VertexLabels.RELEASE,
                 name=self.name,
-                primacy=self.is_main_release,
+                primacy=self.is_main_release or self.master_id is None,
                 random=random.random(),
                 styles=self.styles,
                 videos=self.videos,
                 year=self.year,
             ),
-            # and the tracks
             *(
                 VertexDict(
                     country=self.country,
@@ -399,7 +560,7 @@ class Release:
                     label=VertexLabels.TRACK,
                     name=track.name,
                     position=track.position,
-                    primacy=self.is_main_release,
+                    primacy=self.is_main_release or self.master_id is None,
                     random=random.random(),
                     styles=self.styles,
                     videos=self.videos,
@@ -408,19 +569,36 @@ class Release:
                 for track in self.tracks
             ),
         ]
+        return vertex_dicts
+
+    @property
+    def label(self) -> VertexLabels:
+        return VertexLabels.RELEASE
 
 
 @dataclasses.dataclass
 class Role:
+    """
+    A role.
+
+    Describes the relationship between two artists and/or companies.
+    """
+
     name: str
     detail: str | None = None
 
 
 @dataclasses.dataclass
-class Track:
-    id: int
-    name: str
+class Track(Entity):
+    """
+    A track entity.
+    """
+
     index: int
     position: str
     artists: list[Artist] = dataclasses.field(default_factory=list)
     extra_artists: list[Artist] = dataclasses.field(default_factory=list)
+
+    @property
+    def label(self) -> VertexLabels:
+        return VertexLabels.TRACK

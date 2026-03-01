@@ -31,7 +31,7 @@ clean:
 lint: reformat ruff-lint mypy ## Run all linters
 
 mypy:
-	mypy --ignore-missing-imports src/
+	mypy --ignore-missing-imports ${formatPaths}
 
 pytest:
 	rm -Rf htmlcov/

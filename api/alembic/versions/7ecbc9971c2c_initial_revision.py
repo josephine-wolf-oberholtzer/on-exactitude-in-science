@@ -1,9 +1,9 @@
 """
 initial revision
 
-Revision ID: eda77a5954d5
+Revision ID: 7ecbc9971c2c
 Revises:
-Create Date: 2026-02-25 18:11:13.262891
+Create Date: 2026-02-27 17:52:55.031066
 """
 
 from typing import Sequence, Union
@@ -14,7 +14,7 @@ from sqlalchemy.dialects import postgresql
 from alembic import op
 
 # revision identifiers, used by Alembic.
-revision: str = "eda77a5954d5"
+revision: str = "7ecbc9971c2c"
 down_revision: Union[str, Sequence[str], None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -26,33 +26,60 @@ def upgrade() -> None:
     op.create_table(
         "edges",
         sa.Column("this_id", sa.Integer(), nullable=False),
-        sa.Column("this_label", sa.String(), nullable=False),
+        sa.Column(
+            "this_label",
+            sa.Enum(
+                "ARTIST", "COMPANY", "MASTER", "RELEASE", "TRACK", name="vertexlabels"
+            ),
+            nullable=False,
+        ),
+        sa.Column("this_index", sa.Integer(), nullable=False),
         sa.Column("that_id", sa.Integer(), nullable=False),
-        sa.Column("that_label", sa.String(), nullable=False),
+        sa.Column(
+            "that_label",
+            sa.Enum(
+                "ARTIST", "COMPANY", "MASTER", "RELEASE", "TRACK", name="vertexlabels"
+            ),
+            nullable=False,
+        ),
+        sa.Column("that_index", sa.Integer(), nullable=False),
         sa.Column("direction", sa.Boolean(), nullable=False),
         sa.Column("name", sa.String(), nullable=False),
-        sa.Column("created_on", sa.Integer(), nullable=False),
-        sa.Column("updated_on", sa.Integer(), nullable=False),
+        sa.Column("dataset", sa.DATE(), nullable=False),
         sa.PrimaryKeyConstraint(
-            "this_id", "this_label", "that_id", "that_label", "direction", "name"
+            "this_id",
+            "this_label",
+            "this_index",
+            "that_id",
+            "that_label",
+            "that_index",
+            "direction",
+            "name",
         ),
     )
     op.create_table(
         "vertices",
         sa.Column("id", sa.Integer(), nullable=False),
-        sa.Column("label", sa.String(), nullable=False),
+        sa.Column(
+            "label",
+            sa.Enum(
+                "ARTIST", "COMPANY", "MASTER", "RELEASE", "TRACK", name="vertexlabels"
+            ),
+            nullable=False,
+        ),
+        sa.Column("index", sa.Integer(), nullable=False),
         sa.Column("name", sa.String(), nullable=False),
         sa.Column("random", sa.Float(), nullable=False),
-        sa.Column("created_on", sa.Integer(), nullable=False),
-        sa.Column("updated_on", sa.Integer(), nullable=False),
+        sa.Column("dataset", sa.DATE(), nullable=False),
         sa.Column("country", sa.String(), nullable=True),
         sa.Column("formats", postgresql.ARRAY(sa.String()), nullable=True),
         sa.Column("genres", postgresql.ARRAY(sa.String()), nullable=True),
+        sa.Column("position", sa.String(), nullable=True),
         sa.Column("primacy", sa.Boolean(), nullable=True),
         sa.Column("styles", postgresql.ARRAY(sa.String()), nullable=True),
         sa.Column("videos", postgresql.ARRAY(sa.String()), nullable=True),
         sa.Column("year", sa.Integer(), nullable=True),
-        sa.PrimaryKeyConstraint("id", "label"),
+        sa.PrimaryKeyConstraint("id", "label", "index"),
     )
     # ### end Alembic commands ###
 
