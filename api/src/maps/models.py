@@ -1,6 +1,6 @@
 import datetime
 import enum
-from typing import NotRequired, Optional, TypedDict
+from typing import Optional, TypedDict
 
 from sqlalchemy import Index, String, func
 from sqlalchemy.dialects.postgresql import ARRAY, DATE, JSONB, SMALLINT
@@ -87,49 +87,9 @@ class Edge(Base):
     this_id: Mapped[int] = mapped_column(primary_key=True)
     this_label: Mapped[VertexLabels] = mapped_column(SMALLINT, primary_key=True)
     this_index: Mapped[int] = mapped_column(SMALLINT, primary_key=True)
-
     that_id: Mapped[int] = mapped_column(primary_key=True)
     that_label: Mapped[VertexLabels] = mapped_column(SMALLINT, primary_key=True)
     that_index: Mapped[int] = mapped_column(SMALLINT, primary_key=True)
-
     direction: Mapped[int] = mapped_column(SMALLINT, primary_key=True)
     name: Mapped[str] = mapped_column(primary_key=True)
-
     dataset: Mapped[datetime.date] = mapped_column(DATE)
-
-
-class VertexDict(TypedDict):
-    """
-    For use in typing bulk upsert statements.
-    """
-
-    country: NotRequired[str | None]
-    dataset: datetime.date
-    formats: NotRequired[list[str] | None]
-    genres: NotRequired[list[str] | None]
-    id: int
-    index: int
-    label: VertexLabels
-    name: str
-    position: NotRequired[str | None]
-    primacy: NotRequired[bool | None]
-    random: float
-    styles: NotRequired[list[str] | None]
-    videos: NotRequired[list[VideoDict] | None]
-    year: NotRequired[int | None]
-
-
-class EdgeDict(TypedDict):
-    """
-    For use in typing bulk upsert statements.
-    """
-
-    this_id: int
-    this_label: VertexLabels
-    this_index: int
-    that_id: int
-    that_label: VertexLabels
-    that_index: int
-    name: str
-    direction: int
-    dataset: datetime.date

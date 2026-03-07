@@ -2,12 +2,58 @@ import dataclasses
 import datetime
 import random
 from pathlib import Path
-from typing import Generator, Optional
+from typing import Generator, NotRequired, Optional, Self, TypedDict
 
 import lxml.etree
+from sqlalchemy.dialects.postgresql import Insert, insert
+from sqlalchemy.orm import Session
 
 from . import xml
-from .models import Direction, EdgeDict, EdgeLabels, VertexDict, VertexLabels, VideoDict
+from .models import (
+    Direction,
+    Edge,
+    EdgeLabels,
+    Vertex,
+    VertexLabels,
+    VideoDict,
+)
+
+
+class VertexDict(TypedDict):
+    """
+    For use in typing bulk upsert statements.
+    """
+
+    country: NotRequired[str | None]
+    dataset: datetime.date
+    formats: NotRequired[list[str] | None]
+    genres: NotRequired[list[str] | None]
+    id: int
+    index: int
+    label: VertexLabels
+    name: str
+    position: NotRequired[str | None]
+    primacy: NotRequired[bool | None]
+    random: float
+    styles: NotRequired[list[str] | None]
+    videos: NotRequired[list[VideoDict] | None]
+    year: NotRequired[int | None]
+
+
+class EdgeDict(TypedDict):
+    """
+    For use in typing bulk upsert statements.
+    """
+
+    this_id: int
+    this_label: VertexLabels
+    this_index: int
+    that_id: int
+    that_label: VertexLabels
+    that_index: int
+    name: str
+    direction: int
+    dataset: datetime.date
 
 
 @dataclasses.dataclass(unsafe_hash=True)
@@ -33,6 +79,65 @@ class Entity:
             direction=direction,
             dataset=dataset,
         )
+
+    @classmethod
+    def from_element(cls, element: lxml.etree._Element) -> Self:
+        raise NotImplementedError
+
+    @classmethod
+    def iterate_xml(cls, xml_path: Path) -> Generator[Self, None, None]:
+        """
+        Iterate entities from an XML archive.
+        """
+        for element in xml.iterate_xml(xml_path, cls.__name__.lower()):
+            yield cls.from_element(element)
+
+    @classmethod
+    def load(cls, *, data_path: Path, dataset: datetime.date, session: Session) -> None:
+        def upsert_vertices(values: list[VertexDict]) -> Insert:
+            insert_statement = insert(Vertex).values(values)
+            index_columns = ["id", "label", "index"]
+            update_columns = {
+                column.name: column
+                for column in insert_statement.excluded
+                if column.name not in index_columns
+            }
+            return insert_statement.on_conflict_do_update(
+                index_elements=index_columns, set_=update_columns
+            )
+
+        def upsert_edges(values: list[EdgeDict]) -> Insert:
+            insert_statement = insert(Edge).values(values)
+            index_columns = [
+                "this_id",
+                "this_label",
+                "this_index",
+                "that_id",
+                "that_label",
+                "that_index",
+                "direction",
+                "name",
+            ]
+            update_columns = {
+                column.name: column
+                for column in insert_statement.excluded
+                if column.name not in index_columns
+            }
+            return insert_statement.on_conflict_do_update(
+                index_elements=index_columns, set_=update_columns
+            )
+
+        xml_path = xml.get_xml_path(data_path, cls.__name__.lower())
+        for entity in cls.iterate_xml(xml_path):
+            session.execute(upsert_vertices(entity.to_vertex_dicts(dataset)))
+            session.execute(upsert_edges(entity.to_edge_dicts(dataset)))
+            session.commit()
+
+    def to_edge_dicts(self, dataset: datetime.date) -> list[EdgeDict]:
+        raise NotImplementedError
+
+    def to_vertex_dicts(self, dataset: datetime.date) -> list[VertexDict]:
+        raise NotImplementedError
 
     @property
     def label(self) -> VertexLabels:
