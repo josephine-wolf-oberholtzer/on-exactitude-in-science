@@ -1,6 +1,8 @@
 import dataclasses
 import datetime
 import random
+import re
+import traceback
 from pathlib import Path
 from typing import Generator, NotRequired, Optional, Self, TypedDict
 
@@ -17,6 +19,10 @@ from .models import (
     VertexLabels,
     VideoDict,
 )
+
+DATE_REGEX = re.compile(r"^(\d{4})-(\d{2})-(\d{2})$")
+DATE_NO_DASHES_REGEX = re.compile(r"^(\d{4})(\d{2})(\d{2})$")
+YEAR_REGEX = re.compile(r"^\d\d\d\d$")
 
 
 class VertexDict(TypedDict):
@@ -71,10 +77,10 @@ class Entity:
         return EdgeDict(
             this_id=self.id,
             this_label=self.label,
-            this_index=int(getattr(self, "index")),
+            this_index=int(getattr(self, "index", 0)),
             that_id=that.id,
             that_label=that.label,
-            that_index=int(getattr(that, "index")),
+            that_index=int(getattr(that, "index", 0)),
             name=name,
             direction=direction,
             dataset=dataset,
@@ -401,142 +407,196 @@ class Release(Entity):
     year: int | None = None
 
     @classmethod
+    def _get_artists(cls, element: lxml.etree._Element) -> list[Artist]:
+        artists: set[Artist] = set()
+        for artist in xml.find_list(element, "artists"):
+            artists.add(
+                Artist(
+                    id=int(artist.findtext("id") or ""),
+                    name=artist.findtext("name") or "",
+                )
+            )
+        return sorted(artists, key=lambda x: x.id)
+
+    @classmethod
+    def _get_companies(cls, element: lxml.etree._Element) -> list[Company]:
+        companies: list[Company] = []
+        for company in xml.find_list(element, "companies"):
+            companies.append(
+                Company(
+                    id=int(company.findtext("id") or ""),
+                    name=company.findtext("name") or "",
+                    roles=Role.parse(company.findtext("entity_type_name") or ""),
+                )
+            )
+        return sorted(companies, key=lambda x: x.id)
+
+    @classmethod
+    def _get_country(cls, element: lxml.etree._Element) -> str | None:
+        if (country := element.find("country")) is not None:
+            return country.text
+        return None
+
+    @classmethod
+    def _get_extra_artists(cls, element: lxml.etree._Element) -> list[Artist]:
+        extra_artists: list[Artist] = []
+        for extra_artist in xml.find_list(element, "extraartists"):
+            extra_artists.append(
+                Artist(
+                    id=int(extra_artist.findtext("id") or ""),
+                    name=extra_artist.findtext("name") or "",
+                    roles=Role.parse(extra_artist.findtext("role") or ""),
+                )
+            )
+        return sorted(extra_artists, key=lambda x: x.id)
+
+    @classmethod
+    def _get_formats(cls, element: lxml.etree._Element) -> list[str]:
+        formats: set[str] = set()
+        for format_ in xml.find_list(element, "formats"):
+            formats.add(format_.get("name") or "")
+            for description in xml.find_list(format_, "descriptions"):
+                formats.add(description.text or "")
+        return sorted(formats)
+
+    @classmethod
+    def _get_genres(cls, element: lxml.etree._Element) -> list[str]:
+        result = []
+        for genre in xml.find_list(element, "genres"):
+            if genre.text:
+                result.append(genre.text)
+        return sorted(set(result))
+
+    @classmethod
+    def _get_is_main_release(cls, element: lxml.etree._Element) -> bool | None:
+        if (master_id := element.find("master_id")) is not None:
+            return master_id.get("is_main_release") == "true"
+        return None
+
+    @classmethod
+    def _get_labels(cls, element: lxml.etree._Element) -> list[Company]:
+        labels: set[Company] = set()
+        for label in xml.find_list(element, "labels"):
+            labels.add(
+                Company(
+                    id=int(label.get("id") or ""),
+                    name=label.get("name") or "",
+                )
+            )
+        return sorted(labels, key=lambda x: x.id)
+
+    @classmethod
+    def _get_master_id(cls, element: lxml.etree._Element) -> int | None:
+        if (master_id := element.findtext("master_id")) is not None:
+            return int(master_id)
+        return None
+
+    @classmethod
+    def _get_styles(cls, element: lxml.etree._Element) -> list[str]:
+        result = []
+        for style in xml.find_list(element, "styles"):
+            result.append(style.text or "")
+        return sorted(set(result))
+
+    @classmethod
+    def _get_tracks(cls, element: lxml.etree._Element, release_id: int) -> list[Track]:
+        tracks: list[Track] = []
+        for i, track in enumerate(xml.find_list(element, "tracklist"), 1):
+            position = (track.findtext("position") or "").strip() or str(i)
+            tracks.append(
+                Track(
+                    id=release_id,
+                    index=i,
+                    name=track.findtext("title") or "",
+                    position=position,
+                    artists=cls._get_artists(track),
+                    extra_artists=cls._get_extra_artists(track),
+                )
+            )
+        return tracks
+
+    @classmethod
+    def _get_videos(cls, element: lxml.etree._Element) -> list[VideoDict] | None:
+        videos: list[VideoDict] = []
+        for video in xml.find_list(element, "videos"):
+            title = video.findtext("title")
+            url = video.get("src")
+            if url and title:
+                videos.append({"title": title, "url": url})
+        return None or videos
+
+    @classmethod
+    def _get_year(cls, element: lxml.etree._Element) -> int | None:
+        if (released := element.findtext("released")) is not None:
+            if date := cls._parse_release_date(released):
+                return date.year
+        return None
+
+    @staticmethod
+    def _parse_release_date(text: str) -> datetime.datetime | None:
+        """
+        Attempt to parse a string into a Python datetime object or None.
+        """
+
+        def validate_release_date(
+            year: str, month: str, day: str
+        ) -> datetime.datetime | None:
+            try:
+                year_ = int(year)
+                if (month_ := int(month)) < 1:
+                    month_ = 1
+                if (day_ := int(day)) < 1:
+                    day_ = 1
+                if 12 < month_:
+                    day_, month_ = month_, day_
+                date = datetime.datetime(year_, month_, 1, 0, 0)
+                return date + datetime.timedelta(days=day_ - 1)
+            except ValueError:
+                traceback.print_exc()
+                print("BAD DATE:", year, month, day)
+                return None
+
+        # empty string
+        if not text:
+            return None
+
+        # yyyy-mm-dd
+        if match := DATE_REGEX.match(text):
+            year, month, day = match.groups()
+            return validate_release_date(year, month, day)
+        # yyyymmdd
+        if match := DATE_NO_DASHES_REGEX.match(text):
+            year, month, day = match.groups()
+            return validate_release_date(year, month, day)
+        # yyyy
+        if match := YEAR_REGEX.match(text):
+            year, month, day = match.group(), "1", "1"
+            return validate_release_date(year, month, day)
+        # other: "?", "????", "None", "Unknown"
+        return None
+
+    @classmethod
     def from_element(cls, element: lxml.etree._Element) -> "Release":
         """
         Instantiate an release entity from an XML element.
         """
 
-        def get_artists(element: lxml.etree._Element) -> list[Artist]:
-            artists: set[Artist] = set()
-            for artist in xml.find_list(element, "artists"):
-                artists.add(
-                    Artist(
-                        id=int(artist.findtext("id") or ""),
-                        name=artist.findtext("name") or "",
-                    )
-                )
-            return sorted(artists, key=lambda x: x.id)
-
-        def get_companies(element: lxml.etree._Element) -> list[Company]:
-            companies: list[Company] = []
-            for company in xml.find_list(element, "companies"):
-                companies.append(
-                    Company(
-                        id=int(company.findtext("id") or ""),
-                        name=company.findtext("name") or "",
-                        roles=xml.parse_roles(
-                            company.findtext("entity_type_name") or ""
-                        ),
-                    )
-                )
-            return sorted(companies, key=lambda x: x.id)
-
-        def get_country(element: lxml.etree._Element) -> str | None:
-            if (country := element.find("country")) is not None:
-                return country.text
-            return None
-
-        def get_extra_artists(element: lxml.etree._Element) -> list[Artist]:
-            extra_artists: list[Artist] = []
-            for extra_artist in xml.find_list(element, "extraartists"):
-                extra_artists.append(
-                    Artist(
-                        id=int(extra_artist.findtext("id") or ""),
-                        name=extra_artist.findtext("name") or "",
-                        roles=xml.parse_roles(extra_artist.findtext("role") or ""),
-                    )
-                )
-            return sorted(extra_artists, key=lambda x: x.id)
-
-        def get_formats(element: lxml.etree._Element) -> list[str]:
-            formats: set[str] = set()
-            for format_ in xml.find_list(element, "formats"):
-                formats.add(format_.get("name") or "")
-                for description in xml.find_list(format_, "descriptions"):
-                    formats.add(description.text or "")
-            return sorted(formats)
-
-        def get_genres(element: lxml.etree._Element) -> list[str]:
-            result = []
-            for genre in xml.find_list(element, "genres"):
-                if genre.text:
-                    result.append(genre.text)
-            return sorted(set(result))
-
-        def get_labels(element: lxml.etree._Element) -> list[Company]:
-            labels: set[Company] = set()
-            for label in xml.find_list(element, "labels"):
-                labels.add(
-                    Company(
-                        id=int(label.get("id") or ""),
-                        name=label.get("name") or "",
-                    )
-                )
-            return sorted(labels, key=lambda x: x.id)
-
-        def get_master_id(element: lxml.etree._Element) -> int | None:
-            if (master_id := element.findtext("master_id")) is not None:
-                return int(master_id)
-            return None
-
-        def get_is_main_release(element: lxml.etree._Element) -> bool | None:
-            if (master_id := element.find("master_id")) is not None:
-                return master_id.get("is_main_release") == "true"
-            return None
-
-        def get_styles(element: lxml.etree._Element) -> list[str]:
-            result = []
-            for style in xml.find_list(element, "styles"):
-                result.append(style.text or "")
-            return sorted(set(result))
-
-        def get_tracks(element: lxml.etree._Element, release_id: int) -> list[Track]:
-            tracks: list[Track] = []
-            for i, track in enumerate(xml.find_list(element, "tracklist"), 1):
-                position = (track.findtext("position") or "").strip() or str(i)
-                tracks.append(
-                    Track(
-                        id=release_id,
-                        index=i,
-                        name=track.findtext("title") or "",
-                        position=position,
-                        artists=get_artists(track),
-                        extra_artists=get_extra_artists(track),
-                    )
-                )
-            return tracks
-
-        def get_videos(element: lxml.etree._Element) -> list[VideoDict] | None:
-            videos: list[VideoDict] = []
-            for video in xml.find_list(element, "videos"):
-                title = video.findtext("title")
-                url = video.get("src")
-                if url and title:
-                    videos.append({"title": title, "url": url})
-            return None or videos
-
-        def get_year(element: lxml.etree._Element) -> int | None:
-            if (released := element.findtext("released")) is not None:
-                if date := xml.parse_release_date(released):
-                    return date.year
-            return None
-
         return Release(
-            artists=get_artists(element),
-            companies=get_companies(element),
-            country=get_country(element),
-            extra_artists=get_extra_artists(element),
-            formats=get_formats(element),
-            genres=get_genres(element),
+            artists=cls._get_artists(element),
+            companies=cls._get_companies(element),
+            country=cls._get_country(element),
+            extra_artists=cls._get_extra_artists(element),
+            formats=cls._get_formats(element),
+            genres=cls._get_genres(element),
             id=int(element.get("id") or ""),
-            is_main_release=bool(get_is_main_release(element)),
-            labels=get_labels(element),
-            master_id=get_master_id(element),
+            is_main_release=bool(cls._get_is_main_release(element)),
+            labels=cls._get_labels(element),
+            master_id=cls._get_master_id(element),
             name=element.findtext("title") or "",
-            styles=get_styles(element),
-            tracks=get_tracks(element, int(element.get("id") or "")),
-            videos=get_videos(element),
-            year=get_year(element),
+            styles=cls._get_styles(element),
+            tracks=cls._get_tracks(element, int(element.get("id") or "")),
+            videos=cls._get_videos(element),
+            year=cls._get_year(element),
         )
 
     @classmethod
@@ -689,6 +749,64 @@ class Role:
 
     name: str
     detail: str | None = None
+
+    @classmethod
+    def parse(cls, text: str) -> list["Role"]:
+        """
+        Attempt to parse a string into a list of role entities.
+        """
+
+        def from_text(text):
+            name = ""
+            current_buffer = ""
+            details = []
+            had_detail = False
+            bracket_depth = 0
+            for character in text:
+                if character == "[":
+                    bracket_depth += 1
+                    if bracket_depth == 1 and not had_detail:
+                        name = current_buffer
+                        current_buffer = ""
+                        had_detail = True
+                    elif 1 < bracket_depth:
+                        current_buffer += character
+                elif character == "]":
+                    bracket_depth -= 1
+                    if not bracket_depth:
+                        details.append(current_buffer)
+                        current_buffer = ""
+                    else:
+                        current_buffer += character
+                else:
+                    current_buffer += character
+            if current_buffer and not had_detail:
+                name = current_buffer
+            name = name.strip()
+            detail = ", ".join(_.strip() for _ in details)
+            return Role(name=name, detail=detail or None)
+
+        roles: list["Role"] = []
+        if not text:
+            return roles
+        current_text = ""
+        bracket_depth = 0
+        for character in text:
+            if character == "[":
+                bracket_depth += 1
+            elif character == "]":
+                bracket_depth -= 1
+            elif not bracket_depth and character == ",":
+                current_text = current_text.strip()
+                if current_text:
+                    roles.append(from_text(current_text))
+                current_text = ""
+                continue
+            current_text += character
+        current_text = current_text.strip()
+        if current_text:
+            roles.append(from_text(current_text))
+        return roles
 
 
 @dataclasses.dataclass
