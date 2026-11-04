@@ -16,27 +16,27 @@ jobs:
     - name: Pull latest
       run: docker pull josiahwolfoberholtzer/on-exactitude-in-science-api:latest
     - name: Build API container
-      run: docker-compose build api
+      run: docker-compose build backend
     - name: Run black
       run: |
-        docker-compose run --rm api black --version
-        docker-compose run --rm api make black-check
+        docker-compose run --rm backend black --version
+        docker-compose run --rm backend make black-check
     - name: Run flake8
       run: |
-        docker-compose run --rm api flake8 --version
-        docker-compose run --rm api make flake8
+        docker-compose run --rm backend flake8 --version
+        docker-compose run --rm backend make flake8
     - name: Run mypy
       run: |
-        docker-compose run --rm api mypy --version
-        docker-compose run --rm api make mypy
+        docker-compose run --rm backend mypy --version
+        docker-compose run --rm backend make mypy
     - name: Wait for JanusGraph
       run: docker-compose run --rm janusgraph-healthcheck
     - name: Load schema
-      run: docker-compose run --rm api python3 -m maps schema --graph testgraph load
+      run: docker-compose run --rm backend python3 -m maps schema --graph testgraph load
     - name: Run pytest
       run: |
-        docker-compose run --rm api pytest --version
-        docker-compose run --rm api make pytest
+        docker-compose run --rm backend pytest --version
+        docker-compose run --rm backend make pytest
     - name: Dump Docker logs
       if: ${{ failure() }}
       run: docker-compose logs
@@ -48,7 +48,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: gui
+        working-directory: frontend
     steps:
     - uses: actions/checkout@v2
     - uses: actions/setup-node@v1

@@ -19,9 +19,9 @@ repos:
     hooks:
       - id: ruff-check
         args: [--fix]
-        files: ^api/
+        files: ^backend/
       - id: ruff-format
-        files: ^api/
+        files: ^backend/
 
   - repo: https://github.com/astral-sh/uv-pre-commit
     rev: 0.13.7
@@ -33,5 +33,5 @@ repos:
     rev: v0.6.1
     hooks:
       - id: biome-check
-        files: ^gui/
+        files: ^frontend/
         additional_dependencies: ["@biomejs/biome@2.6.5"]

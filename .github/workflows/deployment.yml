@@ -23,7 +23,7 @@ jobs:
         tags: latest
         tag_with_sha: true
         path: .
-        dockerfile: api/Dockerfile
+        dockerfile: backend/Dockerfile
         cache_froms: alpine:3.11,josiahwolfoberholtzer/on-exactitude-in-science-api:latest
   gui:
     name: GUI
@@ -40,7 +40,7 @@ jobs:
         repository: josiahwolfoberholtzer/on-exactitude-in-science-gui
         tags: latest
         tag_with_sha: true
-        path: gui
+        path: frontend
         cache_froms: alpine:3.11,josiahwolfoberholtzer/on-exactitude-in-science-gui:latest
   kubernetes:
     name: Update Kubernetes

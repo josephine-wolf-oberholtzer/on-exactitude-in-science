@@ -1,6 +1,6 @@
 .git
 data
-gui
+frontend
 kubernetes
 **/__pycache__
 **/.*cache

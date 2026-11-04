@@ -21,24 +21,24 @@ wait-for-janusgraph:
 	docker-compose run --rm janusgraph-healthcheck
 
 load-data: wait-for-janusgraph
-	time docker-compose run --rm api python3 -m maps data load --limit ${LIMIT} --workers ${WORKERS}
+	time docker-compose run --rm backend python3 -m maps data load --limit ${LIMIT} --workers ${WORKERS}
 
 load-data-unlimited: wait-for-janusgraph
-	time docker-compose run --rm api python3 -m maps data load --workers ${WORKERS}
+	time docker-compose run --rm backend python3 -m maps data load --workers ${WORKERS}
 
 load-data-profiled: wait-for-janusgraph
-	time docker-compose run --rm api python3 -m maps data load --limit ${LIMIT} --workers ${WORKERS} --profile
+	time docker-compose run --rm backend python3 -m maps data load --limit ${LIMIT} --workers ${WORKERS} --profile
 
 load-schema: wait-for-janusgraph
-	docker-compose run --rm api python3 -m maps schema load
+	docker-compose run --rm backend python3 -m maps schema load
 
 load-schema-test: wait-for-janusgraph
-	docker-compose run --rm api python3 -m maps schema --graph testgraph load
+	docker-compose run --rm backend python3 -m maps schema --graph testgraph load
 
 load-from-scratch: reset-janusgraph wait-for-janusgraph load-schema load-schema-test load-data
 
 build-gui:
-	cd gui && yarn install && yarn build
+	cd frontend && yarn install && yarn build
 
 gremlin-docker:
 	docker exec -it $$(docker-compose ps --quiet janusgraph) ./bin/gremlin.sh

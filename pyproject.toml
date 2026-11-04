@@ -30,7 +30,7 @@ dependencies = [
 description = "On Exactitude in Science"
 license = {text = "MIT"}
 name = "maps"
-readme = "api/README.md"
+readme = "backend/README.md"
 requires-python = ">=3.14"
 version = "0.1.0"
 
@@ -40,7 +40,7 @@ documentation = "https://josephine-wolf-oberholtzer.github.io/on-exactitude-in-s
 repository = "https://github.com/josephine-wolf-oberholtzer/on-exactitude-in-science"
 
 [tool.uv.build-backend]
-module-root = "api/src"
+module-root = "backend/src"
 
 [tool.mypy]
 plugins = ["mypy_plugin_lxml.main"]

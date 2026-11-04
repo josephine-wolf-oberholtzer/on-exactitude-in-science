@@ -27,7 +27,7 @@ make LIMIT=10000 load-from-scratch
 Bring the API container online:
 
 ```
-docker-compose up -d api
+docker-compose up -d backend
 ```
 
 Build the GUI:
@@ -39,7 +39,7 @@ make build-gui
 Bring the GUI container online:
 
 ```
-docker-compose up -d gui
+docker-compose up -d frontend
 ```
 
 Now you can visit localhost:8080 to see.

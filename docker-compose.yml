@@ -1,8 +1,8 @@
 services:
-  api:
+  backend:
     build:
       context: .
-      dockerfile: api/Dockerfile
+      dockerfile: backend/Dockerfile
     command: gunicorn --conf gunicorn.conf.py maps.app:app
     environment:
       GUNICORN_ACCESSLOG: "-"
@@ -17,15 +17,15 @@ services:
     ports:
     - 9090:9090
     volumes:
-    - ./api:/app/api
+    - ./backend:/app/backend
     - ./data:/data
-  gui:
+  frontend:
     build:
-      context: gui
+      context: frontend
     ports:
     - 8080:80
     volumes:
-    - ./gui/dist:/var/www/html
+    - ./frontend/dist:/var/www/html
   postgres:
     environment:
       POSTGRES_DB: postgres
