@@ -728,7 +728,6 @@ class Release(Entity):
                     primacy=self.is_main_release or self.master_id is None,
                     random=random.random(),
                     styles=self.styles,
-                    videos=self.videos,
                     year=self.year,
                 )
                 for track in self.tracks
