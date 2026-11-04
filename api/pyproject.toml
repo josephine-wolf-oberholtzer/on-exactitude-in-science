@@ -1,14 +1,19 @@
 [build-system]
-requires = ["uv_build>=0.9.11,<0.10.0"]
 build-backend = "uv_build"
+requires = ["uv_build>=0.9.11,<0.10.0"]
+
+[dependency-groups]
+dev = [
+  "mypy",
+  "pytest",
+  "pytest-asyncio",
+  "pytest-cov",
+  "ruff",
+  "types-lxml",
+  "types-tqdm",
+]
 
 [project]
-name = "maps"
-version = "0.1.0"
-description = "On Exactitude in Science"
-license = {text = "MIT"}
-readme = "README.md"
-requires-python = ">=3.14"
 dependencies = [
   "alembic",
   "asyncpg",
@@ -22,17 +27,12 @@ dependencies = [
   "uvicorn-worker",
   "uvloop",
 ]
-
-[project.optional-dependencies]
-test = [
-  "mypy",
-  "pytest",
-  "pytest-asyncio",
-  "pytest-cov",
-  "ruff",
-  "types-lxml",
-  "types-tqdm",
-]
+description = "On Exactitude in Science"
+license = {text = "MIT"}
+name = "maps"
+readme = "README.md"
+requires-python = ">=3.15"
+version = "0.1.0"
 
 [project.urls]
 homepage = "https://github.com/josephine-wolf-oberholtzer/on-exactitude-in-science"
@@ -48,4 +48,4 @@ log_format = "%(levelname)-8s %(name)s:%(filename)s:%(lineno)-4d %(message)s"
 
 [tool.ruff]
 line-length = 88
-target-version = "py314"
+target-version = "py315"

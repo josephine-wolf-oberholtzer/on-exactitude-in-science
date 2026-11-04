@@ -1,0 +1,9 @@
+{
+  "$schema": "https://biomejs.dev/schemas/2.6.5/schema.json",
+  "files": {
+    "includes": ["gui/**"]
+  },
+  "javascript": {
+    "jsxRuntime": "reactClassic"
+  }
+}

@@ -45,4 +45,3 @@ writeBufferLowWaterMark: 32768
 writeBufferHighWaterMark: 65536
 gremlinPool: 24
 threadPoolWorker: 24
-

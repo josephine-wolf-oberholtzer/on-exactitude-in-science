@@ -1,10 +1,10 @@
 #graph {
-    position: absolute;
-    top: 0px;
-    width: 100%;
-    bottom: 0px;
+	position: absolute;
+	top: 0px;
+	width: 100%;
+	bottom: 0px;
 }
 
 canvas:focus {
-    outline: none,
+	outline: none,;
 }

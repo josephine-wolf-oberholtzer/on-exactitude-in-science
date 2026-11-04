@@ -1,6 +1,6 @@
 import datetime
 import enum
-from typing import Optional, TypedDict
+from typing import TypedDict
 
 from sqlalchemy import Index, String, func
 from sqlalchemy.dialects.postgresql import ARRAY, DATE, JSONB, SMALLINT
@@ -41,8 +41,6 @@ class Base(MappedAsDataclass, DeclarativeBase):
     Base for ORM models.
     """
 
-    pass
-
 
 class Vertex(Base):
     """
@@ -59,14 +57,14 @@ class Vertex(Base):
     random: Mapped[float]
     dataset: Mapped[datetime.date] = mapped_column(DATE)
 
-    country: Mapped[Optional[str]]
-    formats: Mapped[Optional[list[str]]] = mapped_column(ARRAY(String))
-    genres: Mapped[Optional[list[str]]] = mapped_column(ARRAY(String))
-    position: Mapped[Optional[str]]
-    primacy: Mapped[Optional[bool]]
-    styles: Mapped[Optional[list[str]]] = mapped_column(ARRAY(String))
-    videos: Mapped[Optional[list[VideoDict]]] = mapped_column(JSONB)
-    year: Mapped[Optional[int]]
+    country: Mapped[str | None]
+    formats: Mapped[list[str] | None] = mapped_column(ARRAY(String))
+    genres: Mapped[list[str] | None] = mapped_column(ARRAY(String))
+    position: Mapped[str | None]
+    primacy: Mapped[bool | None]
+    styles: Mapped[list[str] | None] = mapped_column(ARRAY(String))
+    videos: Mapped[list[VideoDict] | None] = mapped_column(JSONB)
+    year: Mapped[int | None]
 
     __table_args__ = (
         Index(

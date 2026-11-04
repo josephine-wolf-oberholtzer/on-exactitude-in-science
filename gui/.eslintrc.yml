@@ -4,7 +4,7 @@ env:
   mocha: true
   node: true
 extends:
-  - 'plugin:react/recommended'
+  - "plugin:react/recommended"
   - airbnb
 parser: babel-eslint
 parserOptions:
@@ -20,21 +20,21 @@ rules:
   import/no-named-default: 0
   import/prefer-default-export: 0
   max-len:
-  - error
-  - code: 120
+    - error
+    - code: 120
   no-console: 0
   no-continue: 0
   no-param-reassign:
-  - error
-  - props: false
+    - error
+    - props: false
   no-plusplus:
-  - error
-  - allowForLoopAfterthoughts: true
+    - error
+    - allowForLoopAfterthoughts: true
   no-use-before-define:
-  - error
-  - functions: false
+    - error
+    - functions: false
   one-var:
-  - warn
-  - var: always
-    let: always
-    const: never
+    - warn
+    - var: always
+      let: always
+      const: never

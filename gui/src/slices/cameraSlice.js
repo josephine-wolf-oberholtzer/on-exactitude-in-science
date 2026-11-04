@@ -1,15 +1,15 @@
-import { createSlice } from '@reduxjs/toolkit';
+import { createSlice } from "@reduxjs/toolkit";
 
 const cameraSlice = createSlice({
-  name: 'camera',
-  initialState: {
-    nonce: Date.now(),
-  },
-  reducers: {
-    refocusCamera(state) {
-      state.nonce = Date.now();
-    },
-  },
+	name: "camera",
+	initialState: {
+		nonce: Date.now(),
+	},
+	reducers: {
+		refocusCamera(state) {
+			state.nonce = Date.now();
+		},
+	},
 });
 const { refocusCamera } = cameraSlice.actions;
 

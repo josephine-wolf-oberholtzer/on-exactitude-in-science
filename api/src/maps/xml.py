@@ -1,6 +1,7 @@
 import gzip
+from collections.abc import Generator, Sequence
 from pathlib import Path
-from typing import IO, Any, Generator, Sequence, cast
+from typing import IO, Any, cast
 from xml.dom import minidom
 
 import lxml.etree
@@ -18,7 +19,7 @@ def get_xml_path(directory_path: Path, tag: str) -> Path:
     return file_paths[0]
 
 
-def iterate_xml(xml_path: Path, tag: str) -> Generator[lxml.etree._Element, None, None]:
+def iterate_xml(xml_path: Path, tag: str) -> Generator[lxml.etree._Element]:
     """
     Iterate elements with ``tag`` from a GZIP'd XML archive.
 

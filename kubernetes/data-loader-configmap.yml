@@ -23,6 +23,6 @@ data:
     fi
     if [ -z "${LIMIT}" ]; then
       python3 -m maps data load --path ${DATASET_PATH} --workers 16
-    else 
+    else
       python3 -m maps data load --limit ${LIMIT} --path ${DATASET_PATH} --workers 16
     fi

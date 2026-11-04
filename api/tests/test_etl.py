@@ -1,5 +1,5 @@
 import datetime
-from typing import Iterator
+from collections.abc import Iterator
 
 from maps.etl import Artist, Company, Master, Release, Role, Track
 

@@ -3,8 +3,9 @@ import datetime
 import random
 import re
 import traceback
+from collections.abc import Generator
 from pathlib import Path
-from typing import Generator, NotRequired, Optional, Self, TypedDict
+from typing import NotRequired, Self, TypedDict
 
 import lxml.etree
 from sqlalchemy.dialects.postgresql import Insert, insert
@@ -72,7 +73,7 @@ class Entity:
     name: str
 
     def build_edge_dict(
-        self, that: "Entity", name: str, direction: Direction, dataset: datetime.date
+        self, that: Entity, name: str, direction: Direction, dataset: datetime.date
     ) -> EdgeDict:
         return EdgeDict(
             this_id=self.id,
@@ -91,7 +92,7 @@ class Entity:
         raise NotImplementedError
 
     @classmethod
-    def iterate_xml(cls, xml_path: Path) -> Generator[Self, None, None]:
+    def iterate_xml(cls, xml_path: Path) -> Generator[Self]:
         """
         Iterate entities from an XML archive.
         """
@@ -156,21 +157,21 @@ class Artist(Entity):
     An artist entity.
     """
 
-    aliases: list["Artist"] = dataclasses.field(
+    aliases: list[Artist] = dataclasses.field(
         default_factory=list, compare=False, hash=False
     )
-    groups: list["Artist"] = dataclasses.field(
+    groups: list[Artist] = dataclasses.field(
         default_factory=list, compare=False, hash=False
     )
-    members: list["Artist"] = dataclasses.field(
+    members: list[Artist] = dataclasses.field(
         default_factory=list, compare=False, hash=False
     )
-    roles: list["Role"] = dataclasses.field(
+    roles: list[Role] = dataclasses.field(
         default_factory=list, compare=False, hash=False
     )
 
     @classmethod
-    def from_element(cls, element: lxml.etree._Element) -> "Artist":
+    def from_element(cls, element: lxml.etree._Element) -> Artist:
         """
         Instantiate an artist entity from an XML element.
         """
@@ -200,7 +201,7 @@ class Artist(Entity):
         return artist
 
     @classmethod
-    def iterate_xml(cls, xml_path: Path) -> Generator["Artist", None, None]:
+    def iterate_xml(cls, xml_path: Path) -> Generator[Artist]:
         """
         Iterate artist entities from an XML archive.
         """
@@ -258,18 +259,18 @@ class Company(Entity):
     A company entity.
     """
 
-    parent_company: Optional["Company"] = dataclasses.field(
+    parent_company: Company | None = dataclasses.field(
         default=None, compare=False, hash=False
     )
-    roles: list["Role"] = dataclasses.field(
+    roles: list[Role] = dataclasses.field(
         default_factory=list, compare=False, hash=False
     )
-    subsidiaries: list["Company"] = dataclasses.field(
+    subsidiaries: list[Company] = dataclasses.field(
         default_factory=list, compare=False, hash=False
     )
 
     @classmethod
-    def from_element(cls, element: lxml.etree._Element) -> "Company":
+    def from_element(cls, element: lxml.etree._Element) -> Company:
         """
         Instantiate a company entity from an XML element.
         """
@@ -290,7 +291,7 @@ class Company(Entity):
         return company
 
     @classmethod
-    def iterate_xml(cls, xml_path: Path) -> Generator["Company", None, None]:
+    def iterate_xml(cls, xml_path: Path) -> Generator[Company]:
         """
         Iterate master entities from an XML archive.
         """
@@ -345,7 +346,7 @@ class Master(Entity):
     main_release_id: int
 
     @classmethod
-    def from_element(cls, element: lxml.etree._Element) -> "Master":
+    def from_element(cls, element: lxml.etree._Element) -> Master:
         """
         Instantiate a master entity from an XML element.
         """
@@ -356,7 +357,7 @@ class Master(Entity):
         )
 
     @classmethod
-    def iterate_xml(cls, xml_path: Path) -> Generator["Master", None, None]:
+    def iterate_xml(cls, xml_path: Path) -> Generator[Master]:
         """
         Iterate master entities from an XML archive.
         """
@@ -527,9 +528,10 @@ class Release(Entity):
 
     @classmethod
     def _get_year(cls, element: lxml.etree._Element) -> int | None:
-        if (released := element.findtext("released")) is not None:
-            if date := cls._parse_release_date(released):
-                return date.year
+        if (released := element.findtext("released")) is not None and (
+            date := cls._parse_release_date(released)
+        ):
+            return date.year
         return None
 
     @staticmethod
@@ -576,7 +578,7 @@ class Release(Entity):
         return None
 
     @classmethod
-    def from_element(cls, element: lxml.etree._Element) -> "Release":
+    def from_element(cls, element: lxml.etree._Element) -> Release:
         """
         Instantiate an release entity from an XML element.
         """
@@ -600,7 +602,7 @@ class Release(Entity):
         )
 
     @classmethod
-    def iterate_xml(cls, xml_path: Path) -> Generator["Release", None, None]:
+    def iterate_xml(cls, xml_path: Path) -> Generator[Release]:
         """
         Iterate release entities from an XML archive.
         """
@@ -751,7 +753,7 @@ class Role:
     detail: str | None = None
 
     @classmethod
-    def parse(cls, text: str) -> list["Role"]:
+    def parse(cls, text: str) -> list[Role]:
         """
         Attempt to parse a string into a list of role entities.
         """
@@ -786,7 +788,7 @@ class Role:
             detail = ", ".join(_.strip() for _ in details)
             return Role(name=name, detail=detail or None)
 
-        roles: list["Role"] = []
+        roles: list[Role] = []
         if not text:
             return roles
         current_text = ""
