@@ -1,7 +1,15 @@
 import datetime
 from collections.abc import Iterator
 
+import pytest
+
+from maps.models import Direction, EdgeLabels, VertexLabels
 from maps.etl import Artist, Company, Master, Release, Role, Track
+
+
+@pytest.fixture
+def today() -> datetime.date:
+    return datetime.date.today()
 
 
 def test_Artist_iterate_xml(artists_iterator: Iterator[Artist]) -> None:
@@ -14,12 +22,103 @@ def test_Artist_iterate_xml(artists_iterator: Iterator[Artist]) -> None:
     )
 
 
-def test_Artist_to_edge_dicts(artists_iterator: Iterator[Artist]) -> None:
-    assert next(artists_iterator).to_edge_dicts(datetime.date.today()) == []
+def test_Artist_to_edge_dicts(artists_iterator: Iterator[Artist], today: datetime.date) -> None:
+    assert next(artists_iterator).to_edge_dicts(datetime.date.today()) == [
+        {
+            'dataset': today,
+            'direction': Direction.BIDIRECTIONAL,
+            'name': EdgeLabels.ALIAS_OF,
+            'that_id': 239,
+            'that_index': 0,
+            'that_label': VertexLabels.ARTIST,
+            'this_id': 1,
+            'this_index': 0,
+            'this_label': VertexLabels.ARTIST,
+        },
+        {
+            'dataset': today,
+            'direction': Direction.BIDIRECTIONAL,
+            'name': EdgeLabels.ALIAS_OF,
+            'that_id': 16055,
+            'that_index': 0,
+            'that_label': VertexLabels.ARTIST,
+            'this_id': 1,
+            'this_index': 0,
+            'this_label': VertexLabels.ARTIST,
+        },
+        {
+            'dataset': today,
+            'direction': Direction.BIDIRECTIONAL,
+            'name': EdgeLabels.ALIAS_OF,
+            'that_id': 19541,
+            'that_index': 0,
+            'that_label': VertexLabels.ARTIST,
+            'this_id': 1,
+            'this_index': 0,
+            'this_label': VertexLabels.ARTIST,
+        },
+        {
+            'dataset': today,
+            'direction': Direction.BIDIRECTIONAL,
+            'name': EdgeLabels.ALIAS_OF,
+            'that_id': 25227,
+            'that_index': 0,
+            'that_label': VertexLabels.ARTIST,
+            'this_id': 1,
+            'this_index': 0,
+            'this_label': VertexLabels.ARTIST,
+        },
+        {
+            'dataset': today,
+            'direction': Direction.BIDIRECTIONAL,
+            'name': EdgeLabels.ALIAS_OF,
+            'that_id': 196957,
+            'that_index': 0,
+            'that_label': VertexLabels.ARTIST,
+            'this_id': 1,
+            'this_index': 0,
+            'this_label': VertexLabels.ARTIST,
+        },
+        {
+            'dataset': today,
+            'direction': Direction.BIDIRECTIONAL,
+            'name': EdgeLabels.ALIAS_OF,
+            'that_id': 278760,
+            'that_index': 0,
+            'that_label': VertexLabels.ARTIST,
+            'this_id': 1,
+            'this_index': 0,
+            'this_label': VertexLabels.ARTIST,
+        },
+        {
+            'dataset': today,
+            'direction': Direction.BIDIRECTIONAL,
+            'name': EdgeLabels.ALIAS_OF,
+            'that_id': 439150,
+            'that_index': 0,
+            'that_label': VertexLabels.ARTIST,
+            'this_id': 1,
+            'this_index': 0,
+            'this_label': VertexLabels.ARTIST,
+        },
+    ]
 
 
-def test_Artist_to_vertex_dicts(artists_iterator: Iterator[Artist]) -> None:
-    assert next(artists_iterator).to_vertex_dicts(datetime.date.today()) == []
+def test_Artist_to_vertex_dicts(artists_iterator: Iterator[Artist], today: datetime.date) -> None:
+    vertex_dicts = [
+        dict_ | {"random": ...} for dict_ in
+        next(artists_iterator).to_vertex_dicts(datetime.date.today())
+    ]
+    assert vertex_dicts == [
+        {
+            'dataset': today,
+            'id': 1,
+            'index': 0,
+            'label': VertexLabels.ARTIST,
+            'name': 'The Persuader',
+            'random': ...,
+        },
+    ]
 
 
 def test_Company_iterate_xml(companies_iterator: Iterator[Company]) -> None:
