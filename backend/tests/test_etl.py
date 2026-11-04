@@ -133,10 +133,141 @@ def test_Company_iterate_xml(companies_iterator: Iterator[Company]) -> None:
     )
 
 
+def test_Company_to_edge_dicts(companies_iterator: Iterator[Company], today: datetime.date) -> None:
+    assert next(companies_iterator).to_edge_dicts(today) == [
+        {
+            'dataset': today,
+            'direction': Direction.THIS_TO_THAT,
+            'name': EdgeLabels.SUBSIDIARY_OF,
+            'that_id': 1,
+            'that_index': 0,
+            'that_label': VertexLabels.COMPANY,
+            'this_id': 31405,
+            'this_index': 0,
+            'this_label': VertexLabels.COMPANY,
+        },
+        {
+            'dataset': today,
+            'direction': Direction.THIS_TO_THAT,
+            'name': EdgeLabels.SUBSIDIARY_OF,
+            'that_id': 1,
+            'that_index': 0,
+            'that_label': VertexLabels.COMPANY,
+            'this_id': 41841,
+            'this_index': 0,
+            'this_label': VertexLabels.COMPANY,
+        },
+        {
+            'dataset': today,
+            'direction': Direction.THIS_TO_THAT,
+            'name': EdgeLabels.SUBSIDIARY_OF,
+            'that_id': 1,
+            'that_index': 0,
+            'that_label': VertexLabels.COMPANY,
+            'this_id': 86537,
+            'this_index': 0,
+            'this_label': VertexLabels.COMPANY,
+        },
+        {
+            'dataset': today,
+            'direction': Direction.THIS_TO_THAT,
+            'name': EdgeLabels.SUBSIDIARY_OF,
+            'that_id': 1,
+            'that_index': 0,
+            'that_label': VertexLabels.COMPANY,
+            'this_id': 153760,
+            'this_index': 0,
+            'this_label': VertexLabels.COMPANY,
+        },
+        {
+            'dataset': today,
+            'direction': Direction.THIS_TO_THAT,
+            'name': EdgeLabels.SUBSIDIARY_OF,
+            'that_id': 1,
+            'that_index': 0,
+            'that_label': VertexLabels.COMPANY,
+            'this_id': 277579,
+            'this_index': 0,
+            'this_label': VertexLabels.COMPANY,
+        },
+        {
+            'dataset': today,
+            'direction': Direction.THIS_TO_THAT,
+            'name': EdgeLabels.SUBSIDIARY_OF,
+            'that_id': 1,
+            'that_index': 0,
+            'that_label': VertexLabels.COMPANY,
+            'this_id': 294738,
+            'this_index': 0,
+            'this_label': VertexLabels.COMPANY,
+        },
+        {
+            'dataset': today,
+            'direction': Direction.THIS_TO_THAT,
+            'name': EdgeLabels.SUBSIDIARY_OF,
+            'that_id': 1,
+            'that_index': 0,
+            'that_label': VertexLabels.COMPANY,
+            'this_id': 488315,
+            'this_index': 0,
+            'this_label': VertexLabels.COMPANY,
+        },
+        {
+            'dataset': today,
+            'direction': Direction.THIS_TO_THAT,
+            'name': EdgeLabels.SUBSIDIARY_OF,
+            'that_id': 1,
+            'that_index': 0,
+            'that_label': VertexLabels.COMPANY,
+            'this_id': 1560615,
+            'this_index': 0,
+            'this_label': VertexLabels.COMPANY,
+        },
+    ]
+
+
+def test_Company_to_vertex_dicts(companies_iterator: Iterator[Company], today: datetime.date) -> None:
+    vertex_dicts = [
+        dict_ | {"random": ...} for dict_ in
+        next(companies_iterator).to_vertex_dicts(today)
+    ]
+    assert vertex_dicts == [
+        {
+            'dataset': today,
+            'id': 1,
+            'index': 0,
+            'label': VertexLabels.COMPANY,
+            'name': 'Planet E',
+            'random': ...,
+        },
+    ]
+
+
 def test_Master_iterate_xml(masters_iterator: Iterator[Master]) -> None:
     assert next(masters_iterator) == Master(
         id=18500, main_release_id=155102, name="New Soil"
     )
+
+
+def test_Master_to_edge_dicts(masters_iterator: Iterator[Master], today: datetime.date) -> None:
+    assert next(masters_iterator).to_edge_dicts(today) == []
+
+
+def test_Master_to_vertex_dicts(masters_iterator: Iterator[Master], today: datetime.date) -> None:
+    vertex_dicts = [
+        dict_ | {"random": ...} for dict_ in
+        next(masters_iterator).to_vertex_dicts(today)
+    ]
+    assert vertex_dicts == [
+        {
+            'dataset': today,
+            'id': 18500,
+            'index': 0,
+            'label': VertexLabels.MASTER,
+            'name': 'New Soil',
+            'random': ...,
+        },
+    ]
 
 
 def test_Release_iterate_xml(releases_iterator: Iterator[Release]) -> None:
@@ -202,3 +333,215 @@ def test_Release_iterate_xml(releases_iterator: Iterator[Release]) -> None:
         ],
         year=1999,
     )
+
+
+def test_Release_to_edge_dicts(releases_iterator: Iterator[Release], today: datetime.date) -> None:
+    assert next(releases_iterator).to_edge_dicts(today) == [
+        {
+            'dataset': today,
+            'direction': Direction.THIS_TO_THAT,
+            'name': EdgeLabels.RELEASED_BY,
+            'that_id': 1,
+            'that_index': 0,
+            'that_label': VertexLabels.ARTIST,
+            'this_id': 1,
+            'this_index': 0,
+            'this_label': VertexLabels.RELEASE,
+        },
+        {
+            'dataset': today,
+            'direction': Direction.THIS_TO_THAT,
+            'name': EdgeLabels.RELEASED_ON,
+            'that_id': 5,
+            'that_index': 0,
+            'that_label': VertexLabels.COMPANY,
+            'this_id': 1,
+            'this_index': 0,
+            'this_label': VertexLabels.RELEASE,
+        },
+        {
+            'dataset': today,
+            'direction': Direction.THIS_TO_THAT,
+            'name': 'Music By',
+            'that_id': 1,
+            'that_index': 0,
+            'that_label': VertexLabels.RELEASE,
+            'this_id': 239,
+            'this_index': 0,
+            'this_label': VertexLabels.ARTIST,
+        },
+        {
+            'dataset': today,
+            'direction': Direction.THIS_TO_THAT,
+            'name': 'Pressed By',
+            'that_id': 1,
+            'that_index': 0,
+            'that_label': VertexLabels.RELEASE,
+            'this_id': 56025,
+            'this_index': 0,
+            'this_label': VertexLabels.COMPANY,
+        },
+        {
+            'dataset': today,
+            'direction': Direction.THIS_TO_THAT,
+            'name': 'Recorded At',
+            'that_id': 1,
+            'that_index': 0,
+            'that_label': VertexLabels.RELEASE,
+            'this_id': 271046,
+            'this_index': 0,
+            'this_label': VertexLabels.COMPANY,
+        },
+        {
+            'dataset': today,
+            'direction': Direction.THIS_TO_THAT,
+            'name': 'Subrelease Of',
+            'that_id': 1660109,
+            'that_index': 0,
+            'that_label': VertexLabels.MASTER,
+            'this_id': 1,
+            'this_index': 0,
+            'this_label': VertexLabels.RELEASE,
+        },
+        {
+            'dataset': today,
+            'direction': Direction.THIS_TO_THAT,
+            'name': EdgeLabels.INCLUDED_ON,
+            'that_id': 1,
+            'that_index': 0,
+            'that_label': VertexLabels.RELEASE,
+            'this_id': 1,
+            'this_index': 1,
+            'this_label': VertexLabels.TRACK,
+        },
+        {
+            'dataset': today,
+            'direction': Direction.THIS_TO_THAT,
+            'name': EdgeLabels.INCLUDED_ON,
+            'that_id': 1,
+            'that_index': 0,
+            'that_label': VertexLabels.RELEASE,
+            'this_id': 1,
+            'this_index': 2,
+            'this_label': VertexLabels.TRACK,
+        },
+        {
+            'dataset': today,
+            'direction': Direction.THIS_TO_THAT,
+            'name': EdgeLabels.INCLUDED_ON,
+            'that_id': 1,
+            'that_index': 0,
+            'that_label': VertexLabels.RELEASE,
+            'this_id': 1,
+            'this_index': 3,
+            'this_label': VertexLabels.TRACK,
+        },
+        {
+            'dataset': today,
+            'direction': Direction.THIS_TO_THAT,
+            'name': EdgeLabels.INCLUDED_ON,
+            'that_id': 1,
+            'that_index': 0,
+            'that_label': VertexLabels.RELEASE,
+            'this_id': 1,
+            'this_index': 4,
+            'this_label': VertexLabels.TRACK,
+        },
+        {
+            'dataset': today,
+            'direction': Direction.THIS_TO_THAT,
+            'name': EdgeLabels.INCLUDED_ON,
+            'that_id': 1,
+            'that_index': 0,
+            'that_label': VertexLabels.RELEASE,
+            'this_id': 1,
+            'this_index': 5,
+            'this_label': VertexLabels.TRACK,
+        },
+        {
+            'dataset': today,
+            'direction': Direction.THIS_TO_THAT,
+            'name': EdgeLabels.INCLUDED_ON,
+            'that_id': 1,
+            'that_index': 0,
+            'that_label': VertexLabels.RELEASE,
+            'this_id': 1,
+            'this_index': 6,
+            'this_label': VertexLabels.TRACK,
+        },
+    ]
+
+
+def test_Release_to_vertex_dicts(releases_iterator: Iterator[Release], today: datetime.date) -> None:
+    release = next(releases_iterator)
+    vertex_dicts = [
+        dict_ | {"random": ...} for dict_ in release.to_vertex_dicts(today)
+    ]
+    common = {
+        'country': 'Sweden',
+        'dataset': today,
+        'formats': ['12"', '33 ⅓ RPM', 'Vinyl'],
+        'genres': ['Electronic'],
+        'id': 1,
+        'primacy': True,
+        'styles': ['Deep House'],
+        'videos': release.videos,
+        'year': 1999,
+    }
+    assert vertex_dicts == [
+        {
+            **common,
+            'index': 0,
+            'label': VertexLabels.RELEASE,
+            'name': 'Stockholm',
+            'random': ...,
+        },
+        {
+            **common,
+            'index': 1,
+            'label': VertexLabels.TRACK,
+            'name': 'Östermalm',
+            'position': 'A',
+            'random': ...,
+        },
+        {
+            **common,
+            'index': 2,
+            'label': VertexLabels.TRACK,
+            'name': 'Vasastaden',
+            'position': 'B1',
+            'random': ...,
+        },
+        {
+            **common,
+            'index': 3,
+            'label': VertexLabels.TRACK,
+            'name': 'Kungsholmen',
+            'position': 'B2',
+            'random': ...,
+        },
+        {
+            **common,
+            'index': 4,
+            'label': VertexLabels.TRACK,
+            'name': 'Södermalm',
+            'position': 'C1',
+            'random': ...,
+        },
+        {
+            **common,
+            'index': 5,
+            'label': VertexLabels.TRACK,
+            'name': 'Norrmalm',
+            'position': 'C2',
+            'random': ...,
+        },
+        {
+            **common,
+            'index': 6,
+            'label': VertexLabels.TRACK,
+            'name': 'Gamla Stan',
+            'position': 'D',
+            'random': ...,
+        },
+    ]
