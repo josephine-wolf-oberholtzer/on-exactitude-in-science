@@ -27,8 +27,7 @@ repos:
     rev: 0.13.7
     hooks:
       - id: uv-lock
-        files: ^api/(pyproject\.toml|uv\.lock)$
-        args: [--project, api]
+        files: ^(pyproject\.toml|uv\.lock)$
 
   - repo: https://github.com/biomejs/pre-commit
     rev: v0.6.1

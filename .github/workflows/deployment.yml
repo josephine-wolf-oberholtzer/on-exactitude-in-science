@@ -22,7 +22,8 @@ jobs:
         repository: josiahwolfoberholtzer/on-exactitude-in-science-api
         tags: latest
         tag_with_sha: true
-        path: api
+        path: .
+        dockerfile: api/Dockerfile
         cache_froms: alpine:3.11,josiahwolfoberholtzer/on-exactitude-in-science-api:latest
   gui:
     name: GUI

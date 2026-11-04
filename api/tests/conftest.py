@@ -3,7 +3,6 @@ from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
-
 from maps.etl import Artist, Company, Master, Release
 
 

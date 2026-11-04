@@ -1,7 +1,8 @@
 services:
   api:
     build:
-      context: api
+      context: .
+      dockerfile: api/Dockerfile
     command: gunicorn --conf gunicorn.conf.py maps.app:app
     environment:
       GUNICORN_ACCESSLOG: "-"
@@ -16,7 +17,7 @@ services:
     ports:
     - 9090:9090
     volumes:
-    - ./api:/app
+    - ./api:/app/api
     - ./data:/data
   gui:
     build:
