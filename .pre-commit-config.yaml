@@ -35,3 +35,8 @@ repos:
       - id: biome-check
         files: ^frontend/
         additional_dependencies: ["@biomejs/biome@2.6.5"]
+
+  - repo: https://github.com/zizmorcore/zizmor-pre-commit
+    rev: v1.32.0
+    hooks:
+      - id: zizmor

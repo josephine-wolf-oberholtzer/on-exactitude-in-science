@@ -22,6 +22,7 @@ dependencies = [
   "gunicorn",
   "lxml",
   "psycopg2-binary",
+  "pydantic >= 2.14",
   "sqlalchemy",
   "uqbar",
   "uvicorn-worker",
@@ -31,7 +32,7 @@ description = "On Exactitude in Science"
 license = {text = "MIT"}
 name = "maps"
 readme = "backend/README.md"
-requires-python = ">=3.14"
+requires-python = ">=3.15"
 version = "0.1.0"
 
 [project.urls]
@@ -51,4 +52,4 @@ log_format = "%(levelname)-8s %(name)s:%(filename)s:%(lineno)-4d %(message)s"
 
 [tool.ruff]
 line-length = 88
-target-version = "py314"
+target-version = "py315"
