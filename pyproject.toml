@@ -9,6 +9,7 @@ dev = [
   "pytest-asyncio",
   "pytest-cov",
   "ruff",
+  "testcontainers[postgres]>=4.15.0",
   "types-lxml",
   "types-tqdm",
 ]
@@ -21,9 +22,8 @@ dependencies = [
   "fastapi",
   "gunicorn",
   "lxml",
-  "psycopg2-binary",
   "pydantic >= 2.14",
-  "sqlalchemy",
+  "sqlalchemy[asyncio]",
   "uqbar",
   "uvicorn-worker",
   "uvloop",

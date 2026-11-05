@@ -1,9 +1,47 @@
 import datetime
-from collections.abc import Iterator
+from collections.abc import AsyncIterator, Iterator
 from pathlib import Path
 
 import pytest
+import pytest_asyncio
+from alembic import command
+from alembic.config import Config
 from maps.etl import Artist, Company, Master, Release
+from maps.models import Base
+from sqlalchemy import text
+from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
+from testcontainers.community.postgres import PostgresContainer
+
+
+@pytest.fixture(autouse=True, scope="session")
+def database_container(request):
+    def stop():
+        postgres.stop()
+
+    postgres = PostgresContainer("postgres:16-alpine")
+    postgres.start()
+    request.addfinalizer(stop)
+
+    alembic_config = Config(str(Path(__file__).parents[1] / "alembic.ini"))
+    alembic_config.set_main_option(
+        "sqlalchemy.url", postgres.get_connection_url(driver="asyncpg")
+    )
+    command.upgrade(alembic_config, "head")
+    return postgres
+
+
+@pytest_asyncio.fixture
+async def engine(database_container: PostgresContainer) -> AsyncIterator[AsyncEngine]:
+    engine = create_async_engine(
+        database_container.get_connection_url(driver="asyncpg")
+    )
+    yield engine
+    async with engine.begin() as connection:
+        table_names = ", ".join(
+            f'"{table.name}"' for table in Base.metadata.sorted_tables
+        )
+        await connection.execute(text(f"TRUNCATE {table_names} RESTART IDENTITY"))
+    await engine.dispose()
 
 
 @pytest.fixture

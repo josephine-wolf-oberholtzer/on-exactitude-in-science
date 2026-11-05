@@ -3,8 +3,8 @@ FROM python:3.15.2-alpine
 WORKDIR /app
 
 RUN apk update \
-    && apk add --no-cache --virtual .build-dependencies build-base libffi-dev libxslt-dev musl-dev postgresql-dev \
-    && apk add --no-cache --virtual .runtime-dependencies curl git jq libpq libxslt make
+    && apk add --no-cache --virtual .build-dependencies build-base libffi-dev libxslt-dev musl-dev \
+    && apk add --no-cache --virtual .runtime-dependencies curl git jq libxslt make
 
 COPY pyproject.toml uv.lock /app/
 
