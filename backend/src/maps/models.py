@@ -2,7 +2,7 @@ import datetime
 import enum
 from typing import TypedDict
 
-from sqlalchemy import Index, String, func
+from sqlalchemy import Index, String, func, literal_column
 from sqlalchemy.dialects.postgresql import ARRAY, DATE, JSONB, SMALLINT
 from sqlalchemy.orm import DeclarativeBase, Mapped, MappedAsDataclass, mapped_column
 
@@ -69,7 +69,7 @@ class Vertex(Base):
     __table_args__ = (
         Index(
             "ix_vertices_name_ts_vector",
-            func.to_tsvector("english", name),
+            func.to_tsvector(literal_column("'english'"), name),
             postgresql_using="gin",
         ),
     )

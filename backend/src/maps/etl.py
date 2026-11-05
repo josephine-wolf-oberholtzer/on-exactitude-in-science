@@ -1,15 +1,19 @@
 import dataclasses
 import datetime
+import enum
+import json
 import random
 import re
 import traceback
-from collections.abc import Generator
+from collections.abc import Generator, Mapping, Sequence
 from pathlib import Path
-from typing import NotRequired, Self, TypedDict
+from typing import Any, NotRequired, Self, TypedDict
 
 import lxml.etree
-from sqlalchemy.dialects.postgresql import Insert, insert
-from sqlalchemy.orm import Session
+from sqlalchemy import text
+from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.ext.asyncio import AsyncConnection
+from sqlalchemy.orm import DeclarativeBase
 
 from . import xml
 from .models import (
@@ -63,6 +67,70 @@ class EdgeDict(TypedDict):
     dataset: datetime.date
 
 
+async def copy_and_merge(
+    connection: AsyncConnection,
+    model: type[DeclarativeBase],
+    rows: Sequence[Mapping[str, Any]],
+) -> None:
+    """
+    Upsert rows via a temporary staging table.
+
+    Rows are ``COPY``'d into an unindexed temporary table, then merged into the
+    target with a single ``INSERT ... SELECT ... ON CONFLICT DO UPDATE``. The
+    staging table is dropped when the current transaction ends.
+    """
+    table = model.__table__  # type: ignore[attr-defined]
+    column_names = [column.name for column in table.columns]
+    key_names = [column.name for column in table.primary_key.columns]
+    # Postgres refuses to update the same row twice in one statement, so
+    # collapse duplicate keys up front. The last occurrence wins.
+    deduplicated = {tuple(row[name] for name in key_names): row for row in rows}
+    records = [
+        tuple(
+            _encode_value(row.get(column.name), column.type) for column in table.columns
+        )
+        for _, row in sorted(deduplicated.items())  # Stable lock order
+    ]
+    if not records:
+        return
+    quote = lambda name: f'"{name}"'
+    stage_name = quote(f"{table.name}_stage")
+    update_names = [name for name in column_names if name not in key_names]
+    await connection.execute(
+        text(
+            f"CREATE TEMP TABLE {stage_name} "
+            f"(LIKE {quote(table.name)} INCLUDING DEFAULTS) ON COMMIT DROP"
+        )
+    )
+    raw_connection = await connection.get_raw_connection()
+    await raw_connection.driver_connection.copy_records_to_table(
+        f"{table.name}_stage", records=records, columns=column_names
+    )
+    await connection.execute(
+        text(
+            f"INSERT INTO {quote(table.name)} "
+            f"SELECT {', '.join(map(quote, column_names))} FROM {stage_name} "
+            f"ON CONFLICT ({', '.join(map(quote, key_names))}) DO UPDATE SET "
+            + ", ".join(
+                f"{quote(name)} = EXCLUDED.{quote(name)}" for name in update_names
+            )
+        )
+    )
+
+
+def _encode_value(value: Any, type_: Any) -> Any:
+    """
+    Coerce a Python value to what asyncpg's binary COPY expects.
+    """
+    if value is None:
+        return None
+    if isinstance(type_, JSONB):
+        return json.dumps(value)  # asyncpg's default jsonb codec takes text
+    if isinstance(value, enum.IntEnum):
+        return int(value)
+    return value
+
+
 @dataclasses.dataclass(unsafe_hash=True)
 class Entity:
     """
@@ -92,6 +160,10 @@ class Entity:
         raise NotImplementedError
 
     @classmethod
+    def get_xml_path(cls, data_path: Path) -> Path:
+        return xml.get_xml_path(data_path, cls.__name__.lower())
+
+    @classmethod
     def iterate_xml(cls, xml_path: Path) -> Generator[Self]:
         """
         Iterate entities from an XML archive.
@@ -100,45 +172,38 @@ class Entity:
             yield cls.from_element(element)
 
     @classmethod
-    def load(cls, *, data_path: Path, dataset: datetime.date, session: Session) -> None:
-        def upsert_vertices(values: list[VertexDict]) -> Insert:
-            insert_statement = insert(Vertex).values(values)
-            index_columns = ["id", "label", "index"]
-            update_columns = {
-                column.name: column
-                for column in insert_statement.excluded
-                if column.name not in index_columns
-            }
-            return insert_statement.on_conflict_do_update(
-                index_elements=index_columns, set_=update_columns
-            )
+    async def load_staged(
+        cls,
+        *,
+        data_path: Path,
+        dataset: datetime.date,
+        connection: AsyncConnection,
+        limit: int | None = None,
+        chunk_size: int = 50_000,
+    ) -> None:
+        """
+        Load entities in large chunks, using ``COPY`` into a staging table
+        followed by a single merge, rather than one upsert per entity.
+        """
+        vertex_dicts: list[VertexDict] = []
+        edge_dicts: list[EdgeDict] = []
 
-        def upsert_edges(values: list[EdgeDict]) -> Insert:
-            insert_statement = insert(Edge).values(values)
-            index_columns = [
-                "this_id",
-                "this_label",
-                "this_index",
-                "that_id",
-                "that_label",
-                "that_index",
-                "direction",
-                "name",
-            ]
-            update_columns = {
-                column.name: column
-                for column in insert_statement.excluded
-                if column.name not in index_columns
-            }
-            return insert_statement.on_conflict_do_update(
-                index_elements=index_columns, set_=update_columns
-            )
+        async def flush() -> None:
+            await copy_and_merge(connection, Vertex, vertex_dicts)
+            await copy_and_merge(connection, Edge, edge_dicts)
+            await connection.commit()  # Also drops the temporary tables
+            vertex_dicts.clear()
+            edge_dicts.clear()
 
-        xml_path = xml.get_xml_path(data_path, cls.__name__.lower())
-        for entity in cls.iterate_xml(xml_path):
-            session.execute(upsert_vertices(entity.to_vertex_dicts(dataset)))
-            session.execute(upsert_edges(entity.to_edge_dicts(dataset)))
-            session.commit()
+        xml_path = cls.get_xml_path(data_path)
+        for i, entity in enumerate(cls.iterate_xml(xml_path)):
+            if limit and i == limit:
+                break
+            vertex_dicts.extend(entity.to_vertex_dicts(dataset))
+            edge_dicts.extend(entity.to_edge_dicts(dataset))
+            if len(vertex_dicts) >= chunk_size or len(edge_dicts) >= chunk_size:
+                await flush()
+        await flush()
 
     def to_edge_dicts(self, dataset: datetime.date) -> list[EdgeDict]:
         raise NotImplementedError
@@ -289,6 +354,10 @@ class Company(Entity):
             company.subsidiaries.append(subsidiary)
         company.subsidiaries.sort(key=lambda x: x.id)
         return company
+
+    @classmethod
+    def get_xml_path(cls, data_path: Path) -> Path:
+        return xml.get_xml_path(data_path, "label")
 
     @classmethod
     def iterate_xml(cls, xml_path: Path) -> Generator[Company]:
