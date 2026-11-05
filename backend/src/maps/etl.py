@@ -2,9 +2,12 @@ import dataclasses
 import datetime
 import enum
 import json
+import logging
 import random
 import re
+import time
 import traceback
+import uuid
 from collections.abc import Generator, Mapping, Sequence
 from pathlib import Path
 from typing import Any, NotRequired, Self, TypedDict
@@ -24,6 +27,8 @@ from .models import (
     VertexLabels,
     VideoDict,
 )
+
+logger = logging.getLogger(__name__)
 
 DATE_REGEX = re.compile(r"^(\d{4})-(\d{2})-(\d{2})$")
 DATE_NO_DASHES_REGEX = re.compile(r"^(\d{4})(\d{2})(\d{2})$")
@@ -110,7 +115,11 @@ class Entity:
 
     @classmethod
     def get_xml_path(cls, data_directory_path: Path) -> tuple[Path, datetime.date]:
-        return xml.get_xml_path(data_directory_path, cls.__name__.lower())
+        return xml.get_xml_path(data_directory_path, cls.get_xml_slug())
+
+    @classmethod
+    def get_xml_slug(cls) -> str:
+        return cls.__name__.lower()
 
     @classmethod
     def iterate_xml(cls, xml_path: Path) -> Generator[Self]:
@@ -138,9 +147,10 @@ class Entity:
             connection: AsyncConnection,
             model: type[DeclarativeBase],
             rows: Sequence[Mapping[str, Any]],
-        ) -> None:
+        ) -> int:
             """
-            Upsert rows via a temporary staging table.
+            Upsert rows via a temporary staging table, returning the number of
+            distinct rows merged.
 
             Rows are ``COPY``'d into an unindexed temporary table, then merged into the
             target with a single ``INSERT ... SELECT ... ON CONFLICT DO UPDATE``. The
@@ -164,23 +174,25 @@ class Entity:
                 for _, row in sorted(deduplicated.items())  # Stable lock order
             ]
             if not records:
-                return
-            stage_name = quote(f"{table.name}_stage")
+                return 0
+            uuid4 = str(uuid.uuid4()).replace("-", "")
+            temp_table_name = f"{table.name}_import_{uuid4}"
             update_names = [name for name in column_names if name not in key_names]
             await connection.execute(
                 text(
-                    f"CREATE TEMP TABLE {stage_name} "
+                    f"CREATE TEMP TABLE {quote(temp_table_name)} "
                     f"(LIKE {quote(table.name)} INCLUDING DEFAULTS) ON COMMIT DROP"
                 )
             )
             raw_connection = await connection.get_raw_connection()
             await raw_connection.driver_connection.copy_records_to_table(
-                f"{table.name}_stage", records=records, columns=column_names
+                f"{temp_table_name}", records=records, columns=column_names
             )
             await connection.execute(
                 text(
                     f"INSERT INTO {quote(table.name)} "
-                    f"SELECT {', '.join(map(quote, column_names))} FROM {stage_name} "
+                    f"SELECT {', '.join(map(quote, column_names))} "
+                    f"FROM {quote(temp_table_name)} "
                     f"ON CONFLICT ({', '.join(map(quote, key_names))}) DO UPDATE SET "
                     + ", ".join(
                         f"{quote(name)} = EXCLUDED.{quote(name)}"
@@ -188,25 +200,74 @@ class Entity:
                     )
                 )
             )
+            return len(records)
 
-        async def flush() -> None:
-            await copy_and_merge(connection, Vertex, vertex_dicts)
-            await copy_and_merge(connection, Edge, edge_dicts)
+        async def flush(processed_entities: int) -> None:
+            nonlocal flush_count, total_vertices, total_edges
+            if not vertex_dicts and not edge_dicts:
+                return
+            flush_started = time.perf_counter()
+            vertex_count = await copy_and_merge(connection, Vertex, vertex_dicts)
+            edge_count = await copy_and_merge(connection, Edge, edge_dicts)
             await connection.commit()  # Also drops the temporary tables
             vertex_dicts.clear()
             edge_dicts.clear()
+            flush_count += 1
+            total_vertices += vertex_count
+            total_edges += edge_count
+            now = time.perf_counter()
+            logger.info(
+                "... %s flush %d (%.1f%% of file): committed %d vertices and %d edges "
+                "from %d entities in %.2fs (%.2fs elapsed)",
+                cls.__name__,
+                flush_count,
+                progress.percentage,
+                vertex_count,
+                edge_count,
+                processed_entities,
+                now - flush_started,
+                now - load_started,
+            )
+
+        limit = limit or None
+        if limit is not None and limit < 0:
+            raise ValueError(limit)
 
         vertex_dicts: list[VertexDict] = []
         edge_dicts: list[EdgeDict] = []
+        flush_count = 0
+        total_vertices = 0
+        total_edges = 0
+        load_started = time.perf_counter()
         xml_path, date = cls.get_xml_path(data_directory_path)
-        for i, entity in enumerate(cls.iterate_xml(xml_path)):
-            if limit and i == limit:
+        logger.info(
+            "Loading %s from %s (chunk_size=%s limit=%s)",
+            cls.__name__,
+            xml_path,
+            chunk_size,
+            limit,
+        )
+        progress = xml.Progress()
+        processed_entities = 0
+        for element in xml.iterate_xml(xml_path, cls.get_xml_slug(), progress):
+            if limit and processed_entities == limit:
                 break
+            entity = cls.from_element(element)
             vertex_dicts.extend(entity.to_vertex_dicts(date))
             edge_dicts.extend(entity.to_edge_dicts(date))
+            processed_entities += 1
             if len(vertex_dicts) >= chunk_size or len(edge_dicts) >= chunk_size:
-                await flush()
-        await flush()
+                await flush(processed_entities)
+        await flush(processed_entities)
+        logger.info(
+            "... Finished loading %s: %d flushes, %d vertices and %d edges committed "
+            "in %.2fs",
+            cls.__name__,
+            flush_count,
+            total_vertices,
+            total_edges,
+            time.perf_counter() - load_started,
+        )
 
     def to_edge_dicts(self, dataset: datetime.date) -> list[EdgeDict]:
         raise NotImplementedError
@@ -359,8 +420,8 @@ class Company(Entity):
         return company
 
     @classmethod
-    def get_xml_path(cls, data_directory_path: Path) -> tuple[Path, datetime.date]:
-        return xml.get_xml_path(data_directory_path, "label")
+    def get_xml_slug(cls) -> str:
+        return "label"
 
     @classmethod
     def iterate_xml(cls, xml_path: Path) -> Generator[Company]:
@@ -495,9 +556,11 @@ class Release(Entity):
     def _get_companies(cls, element: lxml.etree._Element) -> list[Company]:
         companies: list[Company] = []
         for company in xml.find_list(element, "companies"):
+            if not (company_id_text := company.findtext("id")):
+                continue
             companies.append(
                 Company(
-                    id=int(company.findtext("id") or ""),
+                    id=int(company_id_text),
                     name=company.findtext("name") or "",
                     roles=Role.parse(company.findtext("entity_type_name") or ""),
                 )
@@ -514,9 +577,11 @@ class Release(Entity):
     def _get_extra_artists(cls, element: lxml.etree._Element) -> list[Artist]:
         extra_artists: list[Artist] = []
         for extra_artist in xml.find_list(element, "extraartists"):
+            if not (extra_artist_id_text := extra_artist.findtext("id")):
+                continue
             extra_artists.append(
                 Artist(
-                    id=int(extra_artist.findtext("id") or ""),
+                    id=int(extra_artist_id_text),
                     name=extra_artist.findtext("name") or "",
                     roles=Role.parse(extra_artist.findtext("role") or ""),
                 )
@@ -550,9 +615,11 @@ class Release(Entity):
     def _get_labels(cls, element: lxml.etree._Element) -> list[Company]:
         labels: set[Company] = set()
         for label in xml.find_list(element, "labels"):
+            if not (label_id_text := label.get("id")):
+                continue
             labels.add(
                 Company(
-                    id=int(label.get("id") or ""),
+                    id=int(label_id_text),
                     name=label.get("name") or "",
                 )
             )

@@ -35,6 +35,9 @@ readme = "backend/README.md"
 requires-python = ">=3.15"
 version = "0.1.0"
 
+[project.scripts]
+maps = "maps.cli:cli"
+
 [project.urls]
 homepage = "https://github.com/josephine-wolf-oberholtzer/on-exactitude-in-science"
 documentation = "https://josephine-wolf-oberholtzer.github.io/on-exactitude-in-science"
