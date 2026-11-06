@@ -7,7 +7,7 @@ from sqlalchemy.dialects.postgresql import ARRAY, DATE, JSONB, SMALLINT
 from sqlalchemy.orm import DeclarativeBase, Mapped, MappedAsDataclass, mapped_column
 
 
-class VertexLabels(enum.IntEnum):
+class VertexLabel(enum.IntEnum):
     ARTIST = 0
     COMPANY = 1
     MASTER = 2
@@ -15,7 +15,7 @@ class VertexLabels(enum.IntEnum):
     TRACK = 4
 
 
-class EdgeLabels(enum.StrEnum):
+class EdgeLabel(enum.StrEnum):
     ALIAS_OF = "Alias Of"
     INCLUDED_ON = "Included On"
     MEMBER_OF = "Member Of"
@@ -50,7 +50,7 @@ class Vertex(Base):
     __tablename__ = "vertices"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    label: Mapped[VertexLabels] = mapped_column(SMALLINT, primary_key=True)
+    label: Mapped[VertexLabel] = mapped_column(SMALLINT, primary_key=True)
     index: Mapped[int] = mapped_column(SMALLINT, primary_key=True)
 
     name: Mapped[str] = mapped_column(String)
@@ -85,10 +85,10 @@ class Edge(Base):
     __tablename__ = "edges"
 
     this_id: Mapped[int] = mapped_column(primary_key=True)
-    this_label: Mapped[VertexLabels] = mapped_column(SMALLINT, primary_key=True)
+    this_label: Mapped[VertexLabel] = mapped_column(SMALLINT, primary_key=True)
     this_index: Mapped[int] = mapped_column(SMALLINT, primary_key=True)
     that_id: Mapped[int] = mapped_column(primary_key=True)
-    that_label: Mapped[VertexLabels] = mapped_column(SMALLINT, primary_key=True)
+    that_label: Mapped[VertexLabel] = mapped_column(SMALLINT, primary_key=True)
     that_index: Mapped[int] = mapped_column(SMALLINT, primary_key=True)
     direction: Mapped[int] = mapped_column(SMALLINT, primary_key=True)
     name: Mapped[str] = mapped_column(primary_key=True)

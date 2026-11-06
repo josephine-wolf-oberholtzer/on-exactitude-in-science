@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import RedirectResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..models import VertexLabels
+from ..models import VertexLabel
 from ..query import get_random_entity
 from .dependencies import get_session
 from .utility import get_vertex_url
@@ -15,7 +15,7 @@ Session = Annotated[AsyncSession, Depends(get_session)]
 
 
 async def redirect_to_random_entity(
-    request: Request, session: AsyncSession, label: VertexLabels | None
+    request: Request, session: AsyncSession, label: VertexLabel | None
 ) -> RedirectResponse:
     """
     Redirect to the entity endpoint of a random vertex, optionally with a given label.
@@ -36,24 +36,24 @@ async def get_random(request: Request, session: Session) -> RedirectResponse:
 
 @router.get("/artist/")
 async def get_random_artist(request: Request, session: Session) -> RedirectResponse:
-    return await redirect_to_random_entity(request, session, VertexLabels.ARTIST)
+    return await redirect_to_random_entity(request, session, VertexLabel.ARTIST)
 
 
 @router.get("/company/")
 async def get_random_company(request: Request, session: Session) -> RedirectResponse:
-    return await redirect_to_random_entity(request, session, VertexLabels.COMPANY)
+    return await redirect_to_random_entity(request, session, VertexLabel.COMPANY)
 
 
 @router.get("/master/")
 async def get_random_master(request: Request, session: Session) -> RedirectResponse:
-    return await redirect_to_random_entity(request, session, VertexLabels.MASTER)
+    return await redirect_to_random_entity(request, session, VertexLabel.MASTER)
 
 
 @router.get("/release/")
 async def get_random_release(request: Request, session: Session) -> RedirectResponse:
-    return await redirect_to_random_entity(request, session, VertexLabels.RELEASE)
+    return await redirect_to_random_entity(request, session, VertexLabel.RELEASE)
 
 
 @router.get("/track/")
 async def get_random_track(request: Request, session: Session) -> RedirectResponse:
-    return await redirect_to_random_entity(request, session, VertexLabels.TRACK)
+    return await redirect_to_random_entity(request, session, VertexLabel.TRACK)

@@ -3,11 +3,11 @@ import random
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from .models import Vertex, VertexLabels
+from .models import Vertex, VertexLabel
 
 
 async def get_random_entity(
-    session: AsyncSession, label: VertexLabels | None = None
+    session: AsyncSession, label: VertexLabel | None = None
 ) -> Vertex | None:
     """
     Get a random vertex, optionally with the given label, or ``None`` if there are

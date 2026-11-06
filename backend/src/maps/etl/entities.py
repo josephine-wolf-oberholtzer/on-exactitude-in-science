@@ -21,9 +21,9 @@ from sqlalchemy.orm import DeclarativeBase
 from ..models import (
     Direction,
     Edge,
-    EdgeLabels,
+    EdgeLabel,
     Vertex,
-    VertexLabels,
+    VertexLabel,
     VideoDict,
 )
 from . import xml
@@ -47,7 +47,7 @@ class VertexDict(TypedDict):
     genres: NotRequired[list[str] | None]
     id: int
     index: int
-    label: VertexLabels
+    label: VertexLabel
     name: str
     position: NotRequired[str | None]
     primacy: NotRequired[bool | None]
@@ -63,10 +63,10 @@ class EdgeDict(TypedDict):
     """
 
     this_id: int
-    this_label: VertexLabels
+    this_label: VertexLabel
     this_index: int
     that_id: int
-    that_label: VertexLabels
+    that_label: VertexLabel
     that_index: int
     name: str
     direction: int
@@ -341,7 +341,7 @@ class Entity:
         raise NotImplementedError
 
     @property
-    def label(self) -> VertexLabels:
+    def label(self) -> VertexLabel:
         raise NotImplementedError
 
 
@@ -411,7 +411,7 @@ class Artist(Entity):
                 self.build_edge_dict(
                     dataset=dataset,
                     direction=Direction.BIDIRECTIONAL,
-                    name=EdgeLabels.ALIAS_OF,
+                    name=EdgeLabel.ALIAS_OF,
                     that=alias,
                 )
                 for alias in self.aliases
@@ -420,7 +420,7 @@ class Artist(Entity):
                 member.build_edge_dict(
                     dataset=dataset,
                     direction=Direction.THIS_TO_THAT,
-                    name=EdgeLabels.MEMBER_OF,
+                    name=EdgeLabel.MEMBER_OF,
                     that=self,
                 )
                 for member in self.members
@@ -436,15 +436,15 @@ class Artist(Entity):
                 dataset=dataset,
                 id=self.id,
                 index=0,
-                label=VertexLabels.ARTIST,
+                label=VertexLabel.ARTIST,
                 name=self.name,
                 random=random.random(),
             )
         ]
 
     @property
-    def label(self) -> VertexLabels:
-        return VertexLabels.ARTIST
+    def label(self) -> VertexLabel:
+        return VertexLabel.ARTIST
 
 
 @dataclasses.dataclass(unsafe_hash=True)
@@ -505,7 +505,7 @@ class Company(Entity):
                 subsidiary.build_edge_dict(
                     dataset=dataset,
                     direction=Direction.THIS_TO_THAT,
-                    name=EdgeLabels.SUBSIDIARY_OF,
+                    name=EdgeLabel.SUBSIDIARY_OF,
                     that=self,
                 )
                 for subsidiary in self.subsidiaries
@@ -521,15 +521,15 @@ class Company(Entity):
                 dataset=dataset,
                 id=self.id,
                 index=0,
-                label=VertexLabels.COMPANY,
+                label=VertexLabel.COMPANY,
                 name=self.name,
                 random=random.random(),
             )
         ]
 
     @property
-    def label(self) -> VertexLabels:
-        return VertexLabels.COMPANY
+    def label(self) -> VertexLabel:
+        return VertexLabel.COMPANY
 
 
 @dataclasses.dataclass
@@ -574,15 +574,15 @@ class Master(Entity):
                 dataset=dataset,
                 id=self.id,
                 index=0,
-                label=VertexLabels.MASTER,
+                label=VertexLabel.MASTER,
                 name=self.name,
                 random=random.random(),
             )
         ]
 
     @property
-    def label(self) -> VertexLabels:
-        return VertexLabels.MASTER
+    def label(self) -> VertexLabel:
+        return VertexLabel.MASTER
 
 
 @dataclasses.dataclass
@@ -824,7 +824,7 @@ class Release(Entity):
                 self.build_edge_dict(
                     dataset=dataset,
                     direction=Direction.THIS_TO_THAT,
-                    name=EdgeLabels.RELEASED_BY,
+                    name=EdgeLabel.RELEASED_BY,
                     that=artist,
                 )
                 for artist in self.artists
@@ -833,7 +833,7 @@ class Release(Entity):
                 self.build_edge_dict(
                     dataset=dataset,
                     direction=Direction.THIS_TO_THAT,
-                    name=EdgeLabels.RELEASED_ON,
+                    name=EdgeLabel.RELEASED_ON,
                     that=label,
                 )
                 for label in self.labels
@@ -874,13 +874,13 @@ class Release(Entity):
                     track.build_edge_dict(
                         dataset=dataset,
                         direction=Direction.THIS_TO_THAT,
-                        name=EdgeLabels.INCLUDED_ON,
+                        name=EdgeLabel.INCLUDED_ON,
                         that=self,
                     ),
                     *(
                         track.build_edge_dict(
                             that=artist,
-                            name=EdgeLabels.RELEASED_BY,
+                            name=EdgeLabel.RELEASED_BY,
                             direction=Direction.THIS_TO_THAT,
                             dataset=dataset,
                         )
@@ -912,7 +912,7 @@ class Release(Entity):
                 genres=self.genres,
                 id=self.id,
                 index=0,
-                label=VertexLabels.RELEASE,
+                label=VertexLabel.RELEASE,
                 name=self.name,
                 primacy=self.is_main_release or self.master_id is None,
                 random=random.random(),
@@ -928,7 +928,7 @@ class Release(Entity):
                     genres=self.genres,
                     id=self.id,
                     index=track.index,
-                    label=VertexLabels.TRACK,
+                    label=VertexLabel.TRACK,
                     name=track.name,
                     position=track.position,
                     primacy=self.is_main_release or self.master_id is None,
@@ -942,8 +942,8 @@ class Release(Entity):
         return vertex_dicts
 
     @property
-    def label(self) -> VertexLabels:
-        return VertexLabels.RELEASE
+    def label(self) -> VertexLabel:
+        return VertexLabel.RELEASE
 
 
 @dataclasses.dataclass
@@ -1026,5 +1026,5 @@ class Track(Entity):
     extra_artists: list[Artist] = dataclasses.field(default_factory=list)
 
     @property
-    def label(self) -> VertexLabels:
-        return VertexLabels.TRACK
+    def label(self) -> VertexLabel:
+        return VertexLabel.TRACK
