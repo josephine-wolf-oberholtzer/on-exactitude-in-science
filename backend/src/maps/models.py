@@ -1,34 +1,11 @@
 import datetime
-import enum
 from typing import TypedDict
 
 from sqlalchemy import Index, String, func, literal_column
 from sqlalchemy.dialects.postgresql import ARRAY, DATE, JSONB, SMALLINT
 from sqlalchemy.orm import DeclarativeBase, Mapped, MappedAsDataclass, mapped_column
 
-
-class VertexLabel(enum.IntEnum):
-    ARTIST = 0
-    COMPANY = 1
-    MASTER = 2
-    RELEASE = 3
-    TRACK = 4
-
-
-class EdgeLabel(enum.StrEnum):
-    ALIAS_OF = "Alias Of"
-    INCLUDED_ON = "Included On"
-    MEMBER_OF = "Member Of"
-    RELEASED_BY = "Released By"
-    RELEASED_ON = "Released On"
-    SUBRELEASE_OF = "Subrelease Of"
-    SUBSIDIARY_OF = "Subsidiary Of"
-
-
-class Direction(enum.IntEnum):
-    THIS_TO_THAT = -1
-    BIDIRECTIONAL = 0
-    THAT_TO_THIS = 1
+from .constants import VertexLabel
 
 
 class VideoDict(TypedDict):

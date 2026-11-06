@@ -18,14 +18,8 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.ext.asyncio import AsyncConnection
 from sqlalchemy.orm import DeclarativeBase
 
-from ..models import (
-    Direction,
-    Edge,
-    EdgeLabel,
-    Vertex,
-    VertexLabel,
-    VideoDict,
-)
+from ..constants import Direction, EdgeLabel, VertexLabel
+from ..models import Edge, Vertex, VideoDict
 from . import xml
 from .checkpoint import Checkpoint
 

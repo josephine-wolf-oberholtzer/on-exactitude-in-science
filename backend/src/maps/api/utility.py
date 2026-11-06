@@ -1,6 +1,7 @@
 from fastapi import Request
 
-from ..models import Vertex, VertexLabel
+from ..constants import VertexLabel
+from ..models import Vertex
 
 
 def get_vertex_url(request: Request, vertex: Vertex) -> str:

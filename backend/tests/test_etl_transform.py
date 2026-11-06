@@ -2,8 +2,8 @@ import datetime
 from collections.abc import Iterator
 
 import pytest
+from maps.constants import Direction, EdgeLabel, VertexLabel
 from maps.etl import Artist, Company, Master, Release
-from maps.models import Direction, EdgeLabel, VertexLabel
 
 
 @pytest.fixture

@@ -5,7 +5,8 @@ from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..models import Vertex, VertexLabel
+from ..constants import VertexLabel
+from ..models import Vertex
 from .dependencies import get_session
 
 router = APIRouter(prefix="/entity", tags=["entity"])
