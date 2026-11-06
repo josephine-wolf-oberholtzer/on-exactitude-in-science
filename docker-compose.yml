@@ -5,15 +5,20 @@ services:
       dockerfile: backend/Dockerfile
     command: gunicorn "maps.api:create_app()"
     environment:
-      GUNICORN_ACCESSLOG: "-"
-      GUNICORN_BIND: 0.0.0.0:9090
-      GUNICORN_CAPTURE_OUTPUT: "true"
-      GUNICORN_ERRORLOG: "-"
-      GUNICORN_LOGLEVEL: debug
-      GUNICORN_RELOAD: "true"
-      GUNICORN_WORKERS: 4
-      GUNICORN_WORKER_CLASS: uvicorn_worker.UvicornWorker
-      GUNICORN_ENABLE_STDIO_INHERITANCE: "true"
+      # Gunicorn only reads GUNICORN_CMD_ARGS from the environment, not a
+      # GUNICORN_<SETTING> variable per setting.
+      # The control socket can't be created on the bind-mounted source directory.
+      GUNICORN_CMD_ARGS: >-
+        --access-logfile -
+        --bind 0.0.0.0:9090
+        --capture-output
+        --control-socket /tmp/gunicorn.ctl
+        --enable-stdio-inheritance
+        --error-logfile -
+        --log-level debug
+        --reload
+        --worker-class uvicorn_worker.UvicornWorker
+        --workers 4
     ports:
     - 9090:9090
     volumes:

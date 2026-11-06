@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, Query, Request
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..constants import LabelName, VertexLabel
+from ..constants import VertexLabel, VertexLabelName
 from ..query import get_vertices_by_name
 from .dependencies import get_session
 from .utility import get_vertex_url
@@ -31,7 +31,7 @@ async def get_entities_by_name(
     request: Request,
     session: Session,
     name: Annotated[str, Query(description="Name to search for")],
-    label: LabelName | None = None,
+    label: VertexLabelName | None = None,
     limit: Annotated[int, Query(ge=1, le=100)] = 10,
 ) -> SearchResponse:
     """

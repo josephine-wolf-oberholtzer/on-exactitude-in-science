@@ -17,7 +17,7 @@ class EdgeLabel(enum.StrEnum):
     SUBSIDIARY_OF = "Subsidiary Of"
 
 
-class LabelName(enum.StrEnum):
+class VertexLabelName(enum.StrEnum):
     """
     The names of the vertex labels, as they appear in URLs.
     """

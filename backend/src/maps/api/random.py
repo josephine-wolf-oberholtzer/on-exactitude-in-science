@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import RedirectResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..constants import LabelName, VertexLabel
+from ..constants import VertexLabel, VertexLabelName
 from ..query import get_random_vertex
 from .dependencies import get_session
 from .utility import get_vertex_url
@@ -28,7 +28,7 @@ async def redirect_to_random_entity(
 
 @router.get("/")
 async def get_random_entity(
-    request: Request, session: Session, label: LabelName | None = None
+    request: Request, session: Session, label: VertexLabelName | None = None
 ) -> RedirectResponse:
     """
     Redirect to a random entity, optionally restricted by label.

@@ -10,6 +10,19 @@ from .models import Vertex
 MINIMUM_NAME_LENGTH = 3
 
 
+async def get_vertex(
+    session: AsyncSession, id: int, label: VertexLabel, index: int = 0
+) -> Vertex | None:
+    """
+    Get a vertex by its primary key, or ``None`` if there is no such vertex.
+    """
+    return await session.scalar(
+        select(Vertex).where(
+            Vertex.id == id, Vertex.label == int(label), Vertex.index == index
+        )
+    )
+
+
 async def get_vertices_by_name(
     session: AsyncSession, name: str, label: VertexLabel | None = None, limit: int = 10
 ) -> Sequence[Vertex]:
