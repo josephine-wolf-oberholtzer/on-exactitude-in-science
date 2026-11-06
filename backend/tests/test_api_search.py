@@ -13,7 +13,7 @@ async def test_search(client: httpx.AsyncClient, named_engine: AsyncEngine) -> N
         ("company", "Björk Records"),
     ]
     # Each result links to its entity endpoint
-    assert results[0]["url"] == "/entity/artist/1"
+    assert results[0]["url"] == "/entity/?id=1&label=artist"
     entity = await client.get(results[0]["url"])
     assert entity.json() == {"id": 1, "index": 0, "label": "artist"}
 
@@ -25,7 +25,7 @@ async def test_search_track_url(
     response = await client.get("/search/", params={"name": "venus as a boy"})
     [result] = response.json()["results"]
     assert result["label"] == "track"
-    assert result["url"] == "/entity/release/3/track/4"
+    assert result["url"] == "/entity/?id=3&label=track&index=4"
 
 
 @pytest.mark.asyncio
