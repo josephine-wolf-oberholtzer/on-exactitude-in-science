@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine
 async def test_entity(
     label: str, client: httpx.AsyncClient, loaded_engine: AsyncEngine
 ) -> None:
-    redirect = await client.get(f"/random/{label}/")
+    redirect = await client.get("/random/", params={"label": label})
     response = await client.get(redirect.headers["location"])
     entity_id = response.json()["id"]
     response = await client.get(f"/entity/{label}/{entity_id}")
@@ -22,7 +22,7 @@ async def test_entity(
 async def test_entity_track(
     client: httpx.AsyncClient, loaded_engine: AsyncEngine
 ) -> None:
-    redirect = await client.get("/random/track/")
+    redirect = await client.get("/random/", params={"label": "track"})
     location = redirect.headers["location"]
     assert re.fullmatch(r"/entity/release/\d+/track/\d+", location)
     response = await client.get(location)

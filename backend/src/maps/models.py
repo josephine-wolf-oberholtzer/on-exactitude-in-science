@@ -1,7 +1,7 @@
 import datetime
 from typing import TypedDict
 
-from sqlalchemy import Index, String, func, literal_column
+from sqlalchemy import Index, String, func, literal_column, text
 from sqlalchemy.dialects.postgresql import ARRAY, DATE, JSONB, SMALLINT
 from sqlalchemy.orm import DeclarativeBase, Mapped, MappedAsDataclass, mapped_column
 
@@ -45,6 +45,11 @@ class Vertex(Base):
 
     __table_args__ = (
         Index("ix_vertices_label_random", "label", "random"),
+        Index(
+            "ix_vertices_name_trigram",
+            text("immutable_unaccent(name) gin_trgm_ops"),
+            postgresql_using="gin",
+        ),
         Index(
             "ix_vertices_name_ts_vector",
             func.to_tsvector(literal_column("'english'"), name),

@@ -5,7 +5,7 @@ from fastapi import FastAPI
 from sqlalchemy.ext.asyncio import create_async_engine
 
 from .. import config
-from . import entities, health, random
+from . import entities, health, random, search
 
 
 @asynccontextmanager
@@ -22,6 +22,7 @@ def create_app() -> FastAPI:
     app.include_router(entities.router)
     app.include_router(health.router)
     app.include_router(random.router)
+    app.include_router(search.router)
     return app
 
 

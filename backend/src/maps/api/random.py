@@ -5,7 +5,7 @@ from fastapi.responses import RedirectResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..constants import LabelName, VertexLabel
-from ..query import query_random_entity
+from ..query import get_random_vertex
 from .dependencies import get_session
 from .utility import get_vertex_url
 
@@ -20,26 +20,18 @@ async def redirect_to_random_entity(
     """
     Redirect to the entity endpoint of a random vertex, optionally with a given label.
     """
-    if (vertex := await query_random_entity(session, label)) is None:
+    if (vertex := await get_random_vertex(session, label)) is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "No vertices found")
     url = get_vertex_url(request, vertex)
     return RedirectResponse(url, status_code=status.HTTP_307_TEMPORARY_REDIRECT)
 
 
 @router.get("/")
-async def get_random_entity(request: Request, session: Session) -> RedirectResponse:
-    """
-    Redirect to a random entity
-    """
-    return await redirect_to_random_entity(request, session)
-
-
-@router.get("/{label}/")
-async def get_random_entity_by_label(
+async def get_random_entity(
     request: Request, session: Session, label: LabelName | None = None
 ) -> RedirectResponse:
     """
-    Redirect to a random entity restricted to one type.
+    Redirect to a random entity, optionally restricted by label.
     """
     return await redirect_to_random_entity(
         request, session, VertexLabel[label.name] if label else None

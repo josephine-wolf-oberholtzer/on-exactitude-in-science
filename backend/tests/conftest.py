@@ -10,9 +10,10 @@ from alembic.config import Config
 from fastapi import FastAPI
 from maps import config
 from maps.api import create_app
+from maps.constants import VertexLabel
 from maps.etl import Artist, Company, Entity, Master, Release
-from maps.models import Base
-from sqlalchemy import text
+from maps.models import Base, Vertex
+from sqlalchemy import insert, text
 from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
 from testcontainers.community.postgres import PostgresContainer
 
@@ -116,6 +117,35 @@ def masters_iterator(masters_xml_path: Path) -> Iterator[Master]:
 @pytest.fixture
 def masters_xml_path(xml_directory_path: Path) -> Path:
     return xml_directory_path / "discogs_test_masters.xml.gz"
+
+
+@pytest_asyncio.fixture
+async def named_engine(engine: AsyncEngine) -> AsyncEngine:
+    """
+    An engine whose database has a few hand-written vertices, for name searches.
+    """
+    rows = [
+        (1, VertexLabel.ARTIST, 0, "Björk"),
+        (2, VertexLabel.COMPANY, 0, "Björk Records"),
+        (3, VertexLabel.RELEASE, 0, "Debut"),
+        (3, VertexLabel.TRACK, 4, "Venus as a Boy"),
+    ]
+    async with engine.begin() as connection:
+        await connection.execute(
+            insert(Vertex),
+            [
+                {
+                    "id": id_,
+                    "label": int(label),
+                    "index": index,
+                    "name": name,
+                    "random": 0.5,
+                    "dataset": datetime.date(2026, 1, 1),
+                }
+                for id_, label, index, name in rows
+            ],
+        )
+    return engine
 
 
 @pytest.fixture
