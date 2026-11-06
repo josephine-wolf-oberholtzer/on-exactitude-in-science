@@ -162,7 +162,7 @@ async def test_load_writes_checkpoint_and_resumes(
     A checkpoint records the last committed entity; resuming from the first
     entity's ID skips it, and loading everything else yields the same final rows.
     """
-    from maps import checkpoint
+    from maps.etl import Checkpoint
 
     xml_path, date = Artist.get_xml_path(xml_directory_path)
     entities = list(Artist.iterate_xml(xml_path))
@@ -173,8 +173,8 @@ async def test_load_writes_checkpoint_and_resumes(
             connection=connection,
             checkpoint_path=checkpoint_path,
         )
-    saved = checkpoint.read(checkpoint_path)
-    assert saved == checkpoint.Checkpoint("Artist", entities[-1].id, date)
+    saved = Checkpoint.read(checkpoint_path)
+    assert saved == Checkpoint("Artist", entities[-1].id, date)
     full_vertices = await count_rows(engine, "vertices")
 
     async with engine.connect() as connection:

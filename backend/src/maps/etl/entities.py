@@ -18,9 +18,7 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.ext.asyncio import AsyncConnection
 from sqlalchemy.orm import DeclarativeBase
 
-from . import checkpoint as checkpoint_module
-from . import xml
-from .models import (
+from ..models import (
     Direction,
     Edge,
     EdgeLabels,
@@ -28,6 +26,8 @@ from .models import (
     VertexLabels,
     VideoDict,
 )
+from . import xml
+from .checkpoint import Checkpoint
 
 logger = logging.getLogger(__name__)
 
@@ -95,6 +95,111 @@ class Entity:
     id: int
     name: str
 
+    @staticmethod
+    async def _copy_and_merge(
+        connection: AsyncConnection,
+        model: type[DeclarativeBase],
+        rows: Sequence[Mapping[str, Any]],
+    ) -> int:
+        """
+        Upsert rows via a temporary staging table, returning the number of
+        distinct rows merged.
+
+        Rows are ``COPY``'d into an unindexed temporary table, then merged into the
+        target with a single ``INSERT ... SELECT ... ON CONFLICT DO UPDATE``. The
+        staging table is dropped when the current transaction ends.
+        """
+
+        def quote(name: str) -> str:
+            return f'"{name}"'
+
+        table: Any = model.__table__
+        column_names = [column.name for column in table.columns]
+        key_names = [column.name for column in table.primary_key.columns]
+        # Postgres refuses to update the same row twice in one statement, so
+        # collapse duplicate keys up front. The last occurrence wins.
+        deduplicated = {tuple(row[name] for name in key_names): row for row in rows}
+        records = [
+            tuple(
+                _encode_value(row.get(column.name), column.type)
+                for column in table.columns
+            )
+            for _, row in sorted(deduplicated.items())  # Stable lock order
+        ]
+        if not records:
+            return 0
+        uuid4 = str(uuid.uuid4()).replace("-", "")
+        temp_table_name = f"{table.name}_import_{uuid4}"
+        update_names = [name for name in column_names if name not in key_names]
+        await connection.execute(
+            text(
+                f"CREATE TEMP TABLE {quote(temp_table_name)} "
+                f"(LIKE {quote(table.name)} INCLUDING DEFAULTS) ON COMMIT DROP"
+            )
+        )
+        raw_connection = await connection.get_raw_connection()
+        await raw_connection.driver_connection.copy_records_to_table(  # type: ignore[union-attr]
+            f"{temp_table_name}", records=records, columns=column_names
+        )
+        await connection.execute(
+            text(
+                f"INSERT INTO {quote(table.name)} "
+                f"SELECT {', '.join(map(quote, column_names))} "
+                f"FROM {quote(temp_table_name)} "
+                f"ON CONFLICT ({', '.join(map(quote, key_names))}) DO UPDATE SET "
+                + ", ".join(
+                    f"{quote(name)} = EXCLUDED.{quote(name)}" for name in update_names
+                )
+            )
+        )
+        return len(records)
+
+    @classmethod
+    async def _flush(
+        cls,
+        *,
+        checkpoint_path: Path | None,
+        connection: AsyncConnection,
+        date: datetime.date,
+        edge_dicts: list[EdgeDict],
+        flush_count: int,
+        last_entity_id: int | None,
+        load_started: float,
+        processed_entities: int,
+        progress: xml.Progress,
+        vertex_dicts: list[VertexDict],
+    ) -> tuple[int, int]:
+        """
+        Merge the buffered dicts, commit, checkpoint and clear the buffers.
+
+        ``flush_count`` is the 1-based number of this flush. Returns the number of
+        vertices and edges committed.
+        """
+        flush_started = time.perf_counter()
+        vertex_count = await cls._copy_and_merge(connection, Vertex, vertex_dicts)
+        edge_count = await cls._copy_and_merge(connection, Edge, edge_dicts)
+        await connection.commit()  # Also drops the temporary tables
+        if checkpoint_path is not None and last_entity_id is not None:
+            Checkpoint(entity=cls.__name__, last_id=last_entity_id, dataset=date).write(
+                checkpoint_path
+            )
+        vertex_dicts.clear()
+        edge_dicts.clear()
+        now = time.perf_counter()
+        logger.info(
+            "... %s flush %d (%.2f%% of file): committed %d vertices and %d edges "
+            "from %d entities in %.2fs (%.2fs elapsed)",
+            cls.__name__,
+            flush_count,
+            progress.percentage,
+            vertex_count,
+            edge_count,
+            processed_entities,
+            now - flush_started,
+            now - load_started,
+        )
+        return vertex_count, edge_count
+
     def build_edge_dict(
         self, that: Entity, name: str, direction: Direction, dataset: datetime.date
     ) -> EdgeDict:
@@ -134,11 +239,11 @@ class Entity:
     async def load(
         cls,
         *,
-        data_directory_path: Path,
-        connection: AsyncConnection,
-        limit: int | None = None,
-        chunk_size: int = 50_000,
         checkpoint_path: Path | None = None,
+        chunk_size: int = 50_000,
+        connection: AsyncConnection,
+        data_directory_path: Path,
+        limit: int | None = None,
         resume_after_id: int | None = None,
     ) -> None:
         """
@@ -149,99 +254,6 @@ class Entity:
         after every flush. If ``resume_after_id`` is given, skip entities up to and
         including that ID.
         """
-
-        async def copy_and_merge(
-            connection: AsyncConnection,
-            model: type[DeclarativeBase],
-            rows: Sequence[Mapping[str, Any]],
-        ) -> int:
-            """
-            Upsert rows via a temporary staging table, returning the number of
-            distinct rows merged.
-
-            Rows are ``COPY``'d into an unindexed temporary table, then merged into the
-            target with a single ``INSERT ... SELECT ... ON CONFLICT DO UPDATE``. The
-            staging table is dropped when the current transaction ends.
-            """
-
-            def quote(name: str) -> str:
-                return f'"{name}"'
-
-            table = model.__table__  # type: ignore[attr-defined]
-            column_names = [column.name for column in table.columns]
-            key_names = [column.name for column in table.primary_key.columns]
-            # Postgres refuses to update the same row twice in one statement, so
-            # collapse duplicate keys up front. The last occurrence wins.
-            deduplicated = {tuple(row[name] for name in key_names): row for row in rows}
-            records = [
-                tuple(
-                    _encode_value(row.get(column.name), column.type)
-                    for column in table.columns
-                )
-                for _, row in sorted(deduplicated.items())  # Stable lock order
-            ]
-            if not records:
-                return 0
-            uuid4 = str(uuid.uuid4()).replace("-", "")
-            temp_table_name = f"{table.name}_import_{uuid4}"
-            update_names = [name for name in column_names if name not in key_names]
-            await connection.execute(
-                text(
-                    f"CREATE TEMP TABLE {quote(temp_table_name)} "
-                    f"(LIKE {quote(table.name)} INCLUDING DEFAULTS) ON COMMIT DROP"
-                )
-            )
-            raw_connection = await connection.get_raw_connection()
-            await raw_connection.driver_connection.copy_records_to_table(
-                f"{temp_table_name}", records=records, columns=column_names
-            )
-            await connection.execute(
-                text(
-                    f"INSERT INTO {quote(table.name)} "
-                    f"SELECT {', '.join(map(quote, column_names))} "
-                    f"FROM {quote(temp_table_name)} "
-                    f"ON CONFLICT ({', '.join(map(quote, key_names))}) DO UPDATE SET "
-                    + ", ".join(
-                        f"{quote(name)} = EXCLUDED.{quote(name)}"
-                        for name in update_names
-                    )
-                )
-            )
-            return len(records)
-
-        async def flush(processed_entities: int) -> None:
-            nonlocal flush_count, total_vertices, total_edges
-            if not vertex_dicts and not edge_dicts:
-                return
-            flush_started = time.perf_counter()
-            vertex_count = await copy_and_merge(connection, Vertex, vertex_dicts)
-            edge_count = await copy_and_merge(connection, Edge, edge_dicts)
-            await connection.commit()  # Also drops the temporary tables
-            if checkpoint_path is not None and last_entity_id is not None:
-                checkpoint_module.write(
-                    checkpoint_path,
-                    checkpoint_module.Checkpoint(
-                        entity=cls.__name__, last_id=last_entity_id, dataset=date
-                    ),
-                )
-            vertex_dicts.clear()
-            edge_dicts.clear()
-            flush_count += 1
-            total_vertices += vertex_count
-            total_edges += edge_count
-            now = time.perf_counter()
-            logger.info(
-                "... %s flush %d (%.2f%% of file): committed %d vertices and %d edges "
-                "from %d entities in %.2fs (%.2fs elapsed)",
-                cls.__name__,
-                flush_count,
-                progress.percentage,
-                vertex_count,
-                edge_count,
-                processed_entities,
-                now - flush_started,
-                now - load_started,
-            )
 
         limit = limit or None
         if limit is not None and limit < 0:
@@ -277,12 +289,41 @@ class Entity:
             edge_dicts.extend(entity.to_edge_dicts(date))
             processed_entities += 1
             if len(vertex_dicts) >= chunk_size or len(edge_dicts) >= chunk_size:
-                await flush(processed_entities)
+                vertex_count, edge_count = await cls._flush(
+                    connection=connection,
+                    vertex_dicts=vertex_dicts,
+                    edge_dicts=edge_dicts,
+                    processed_entities=processed_entities,
+                    flush_count=flush_count + 1,
+                    checkpoint_path=checkpoint_path,
+                    last_entity_id=last_entity_id,
+                    date=date,
+                    progress=progress,
+                    load_started=load_started,
+                )
+                flush_count += 1
+                total_vertices += vertex_count
+                total_edges += edge_count
         if skipping:
             raise RuntimeError(
                 f"Checkpoint entity ID {resume_after_id} not found in {xml_path}"
             )
-        await flush(processed_entities)
+        if vertex_dicts or edge_dicts:
+            vertex_count, edge_count = await cls._flush(
+                connection=connection,
+                vertex_dicts=vertex_dicts,
+                edge_dicts=edge_dicts,
+                processed_entities=processed_entities,
+                flush_count=flush_count + 1,
+                checkpoint_path=checkpoint_path,
+                last_entity_id=last_entity_id,
+                date=date,
+                progress=progress,
+                load_started=load_started,
+            )
+            flush_count += 1
+            total_vertices += vertex_count
+            total_edges += edge_count
         logger.info(
             "... Finished loading %s: %d flushes, %d vertices and %d edges committed "
             "in %.2fs",
