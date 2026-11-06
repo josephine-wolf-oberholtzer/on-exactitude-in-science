@@ -18,6 +18,7 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.ext.asyncio import AsyncConnection
 from sqlalchemy.orm import DeclarativeBase
 
+from . import checkpoint as checkpoint_module
 from . import xml
 from .models import (
     Direction,
@@ -137,10 +138,16 @@ class Entity:
         connection: AsyncConnection,
         limit: int | None = None,
         chunk_size: int = 50_000,
+        checkpoint_path: Path | None = None,
+        resume_after_id: int | None = None,
     ) -> None:
         """
         Load entities in large chunks, using ``COPY`` into a staging table
         followed by a single merge, rather than one upsert per entity.
+
+        If ``checkpoint_path`` is given, record the last committed entity ID there
+        after every flush. If ``resume_after_id`` is given, skip entities up to and
+        including that ID.
         """
 
         async def copy_and_merge(
@@ -210,6 +217,13 @@ class Entity:
             vertex_count = await copy_and_merge(connection, Vertex, vertex_dicts)
             edge_count = await copy_and_merge(connection, Edge, edge_dicts)
             await connection.commit()  # Also drops the temporary tables
+            if checkpoint_path is not None and last_entity_id is not None:
+                checkpoint_module.write(
+                    checkpoint_path,
+                    checkpoint_module.Checkpoint(
+                        entity=cls.__name__, last_id=last_entity_id, dataset=date
+                    ),
+                )
             vertex_dicts.clear()
             edge_dicts.clear()
             flush_count += 1
@@ -217,7 +231,7 @@ class Entity:
             total_edges += edge_count
             now = time.perf_counter()
             logger.info(
-                "... %s flush %d (%.1f%% of file): committed %d vertices and %d edges "
+                "... %s flush %d (%.2f%% of file): committed %d vertices and %d edges "
                 "from %d entities in %.2fs (%.2fs elapsed)",
                 cls.__name__,
                 flush_count,
@@ -249,15 +263,25 @@ class Entity:
         )
         progress = xml.Progress()
         processed_entities = 0
+        last_entity_id: int | None = None
+        skipping = resume_after_id is not None
         for element in xml.iterate_xml(xml_path, cls.get_xml_slug(), progress):
             if limit and processed_entities == limit:
                 break
             entity = cls.from_element(element)
+            if skipping:
+                skipping = entity.id != resume_after_id
+                continue
+            last_entity_id = entity.id
             vertex_dicts.extend(entity.to_vertex_dicts(date))
             edge_dicts.extend(entity.to_edge_dicts(date))
             processed_entities += 1
             if len(vertex_dicts) >= chunk_size or len(edge_dicts) >= chunk_size:
                 await flush(processed_entities)
+        if skipping:
+            raise RuntimeError(
+                f"Checkpoint entity ID {resume_after_id} not found in {xml_path}"
+            )
         await flush(processed_entities)
         logger.info(
             "... Finished loading %s: %d flushes, %d vertices and %d edges committed "

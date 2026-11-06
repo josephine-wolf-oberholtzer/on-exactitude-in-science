@@ -150,3 +150,59 @@ async def test_load_accumulates_across_entity_types(
         )
         counts.append(await count_rows(engine, "vertices"))
     assert counts == sorted(set(counts))  # Strictly increasing
+
+
+@pytest.mark.asyncio
+async def test_load_writes_checkpoint_and_resumes(
+    engine: AsyncEngine,
+    xml_directory_path: Path,
+    tmp_path: Path,
+) -> None:
+    """
+    A checkpoint records the last committed entity; resuming from the first
+    entity's ID skips it, and loading everything else yields the same final rows.
+    """
+    from maps import checkpoint
+
+    xml_path, date = Artist.get_xml_path(xml_directory_path)
+    entities = list(Artist.iterate_xml(xml_path))
+    checkpoint_path = tmp_path / "checkpoint.json"
+    async with engine.connect() as connection:
+        await Artist.load(
+            data_directory_path=xml_directory_path,
+            connection=connection,
+            checkpoint_path=checkpoint_path,
+        )
+    saved = checkpoint.read(checkpoint_path)
+    assert saved == checkpoint.Checkpoint("Artist", entities[-1].id, date)
+    full_vertices = await count_rows(engine, "vertices")
+
+    async with engine.connect() as connection:
+        await connection.execute(text("DELETE FROM edges"))
+        await connection.execute(text("DELETE FROM vertices"))
+        await connection.commit()
+        await Artist.load(
+            data_directory_path=xml_directory_path,
+            connection=connection,
+            resume_after_id=entities[0].id,
+        )
+    expected, _ = count_expected_rows(Artist, xml_path, date)
+    skipped_keys = {
+        (v["id"], v["label"], v["index"]) for v in entities[0].to_vertex_dicts(date)
+    }
+    assert await count_rows(engine, "vertices") <= full_vertices
+    assert await count_rows(engine, "vertices") >= expected - len(skipped_keys)
+
+
+@pytest.mark.asyncio
+async def test_resume_with_unknown_id_raises(
+    engine: AsyncEngine,
+    xml_directory_path: Path,
+) -> None:
+    async with engine.connect() as connection:
+        with pytest.raises(RuntimeError, match="not found"):
+            await Artist.load(
+                data_directory_path=xml_directory_path,
+                connection=connection,
+                resume_after_id=-1,
+            )

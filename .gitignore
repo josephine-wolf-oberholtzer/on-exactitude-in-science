@@ -131,3 +131,6 @@ dmypy.json
 
 # OSX
 .DS_Store
+
+# Load checkpoint
+.load-checkpoint.json
