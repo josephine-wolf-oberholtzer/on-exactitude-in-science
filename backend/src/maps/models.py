@@ -67,11 +67,13 @@ class Vertex(Base):
     year: Mapped[int | None]
 
     __table_args__ = (
+        Index("ix_vertices_label_random", "label", "random"),
         Index(
             "ix_vertices_name_ts_vector",
             func.to_tsvector(literal_column("'english'"), name),
             postgresql_using="gin",
         ),
+        Index("ix_vertices_random", "random"),
     )
 
 

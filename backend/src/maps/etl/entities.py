@@ -1004,14 +1004,12 @@ class Role:
             elif character == "]":
                 bracket_depth -= 1
             elif not bracket_depth and character == ",":
-                current_text = current_text.strip()
-                if current_text:
+                if current_text := current_text.strip():
                     roles.append(from_text(current_text))
                 current_text = ""
                 continue
             current_text += character
-        current_text = current_text.strip()
-        if current_text:
+        if current_text := current_text.strip():
             roles.append(from_text(current_text))
         return roles
 

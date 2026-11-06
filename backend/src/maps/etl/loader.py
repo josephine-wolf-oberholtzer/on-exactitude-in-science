@@ -15,8 +15,11 @@ async def load(
     entity_classes: list[type[Entity]] = [Artist, Company, Master, Release]
     # Limited runs are partial by design: no checkpoint is read or written.
     checkpoint_path = None if limit else Checkpoint.get_path(data_directory_path)
-    saved = Checkpoint.read(checkpoint_path) if checkpoint_path and resume else None
-    if saved is not None:
+    if (
+        saved := Checkpoint.read(checkpoint_path)
+        if checkpoint_path and resume
+        else None
+    ) is not None:
         names = [c.__name__ for c in entity_classes]
         _, dataset = entity_classes[0].get_xml_path(data_directory_path)
         if saved.entity not in names or saved.dataset != dataset:

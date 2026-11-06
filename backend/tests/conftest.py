@@ -10,7 +10,7 @@ from alembic.config import Config
 from fastapi import FastAPI
 from maps import config
 from maps.api import create_app
-from maps.etl import Artist, Company, Master, Release
+from maps.etl import Artist, Company, Entity, Master, Release
 from maps.models import Base
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
@@ -92,6 +92,20 @@ async def engine(database_container: PostgresContainer) -> AsyncIterator[AsyncEn
         )
         await connection.execute(text(f"TRUNCATE {table_names} RESTART IDENTITY"))
     await engine.dispose()
+
+
+@pytest_asyncio.fixture
+async def loaded_engine(engine: AsyncEngine, xml_directory_path: Path) -> AsyncEngine:
+    """
+    An engine whose database has every test entity type loaded.
+    """
+    entity_classes: list[type[Entity]] = [Artist, Company, Master, Release]
+    for entity_class in entity_classes:
+        async with engine.connect() as connection:
+            await entity_class.load(
+                data_directory_path=xml_directory_path, connection=connection
+            )
+    return engine
 
 
 @pytest.fixture

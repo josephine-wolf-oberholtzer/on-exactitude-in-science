@@ -5,7 +5,7 @@ from fastapi import FastAPI
 from sqlalchemy.ext.asyncio import create_async_engine
 
 from .. import config
-from . import health
+from . import entities, health, random
 
 
 @asynccontextmanager
@@ -19,7 +19,9 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
 def create_app() -> FastAPI:
     app = FastAPI(lifespan=lifespan, title="On Exactitude in Science")
+    app.include_router(entities.router)
     app.include_router(health.router)
+    app.include_router(random.router)
     return app
 
 
