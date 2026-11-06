@@ -544,9 +544,11 @@ class Release(Entity):
     def _get_artists(cls, element: lxml.etree._Element) -> list[Artist]:
         artists: set[Artist] = set()
         for artist in xml.find_list(element, "artists"):
+            if not (artist_id_text := artist.findtext("id")):
+                continue
             artists.add(
                 Artist(
-                    id=int(artist.findtext("id") or ""),
+                    id=int(artist_id_text),
                     name=artist.findtext("name") or "",
                 )
             )
