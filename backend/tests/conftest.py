@@ -2,15 +2,65 @@ import datetime
 from collections.abc import AsyncIterator, Iterator
 from pathlib import Path
 
+import httpx
 import pytest
 import pytest_asyncio
 from alembic import command
 from alembic.config import Config
+from fastapi import FastAPI
+from maps import config
+from maps.api import create_app
 from maps.etl import Artist, Company, Master, Release
 from maps.models import Base
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
 from testcontainers.community.postgres import PostgresContainer
+
+
+@pytest_asyncio.fixture
+async def app(
+    database_container: PostgresContainer, monkeypatch: pytest.MonkeyPatch
+) -> AsyncIterator[FastAPI]:
+    """
+    Yield an app that has been started, and shut it down afterwards.
+
+    ``httpx.ASGITransport`` does not run the ASGI lifespan, so enter it here.
+    """
+    monkeypatch.setattr(
+        config, "DATABASE_URL", database_container.get_connection_url(driver="asyncpg")
+    )
+    app = create_app()
+    async with app.router.lifespan_context(app):
+        yield app
+
+
+@pytest.fixture
+def artists_iterator(artists_xml_path: Path) -> Iterator[Artist]:
+    return Artist.iterate_xml(artists_xml_path)
+
+
+@pytest.fixture
+def artists_xml_path(xml_directory_path: Path) -> Path:
+    return xml_directory_path / "discogs_test_artists.xml.gz"
+
+
+@pytest_asyncio.fixture
+async def client(app: FastAPI) -> AsyncIterator[httpx.AsyncClient]:
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        yield client
+
+
+@pytest.fixture
+def companies_iterator(companies_xml_path: Path) -> Iterator[Company]:
+    return Company.iterate_xml(companies_xml_path)
+
+
+@pytest.fixture
+def companies_xml_path(xml_directory_path: Path) -> Path:
+    # N.B. Discogs uses the term "labels" but this is imprecise, as the entity
+    # actually refers to any company.
+    return xml_directory_path / "discogs_test_labels.xml.gz"
 
 
 @pytest.fixture(autouse=True, scope="session")
@@ -42,28 +92,6 @@ async def engine(database_container: PostgresContainer) -> AsyncIterator[AsyncEn
         )
         await connection.execute(text(f"TRUNCATE {table_names} RESTART IDENTITY"))
     await engine.dispose()
-
-
-@pytest.fixture
-def artists_iterator(artists_xml_path: Path) -> Iterator[Artist]:
-    return Artist.iterate_xml(artists_xml_path)
-
-
-@pytest.fixture
-def artists_xml_path(xml_directory_path: Path) -> Path:
-    return xml_directory_path / "discogs_test_artists.xml.gz"
-
-
-@pytest.fixture
-def companies_iterator(companies_xml_path: Path) -> Iterator[Company]:
-    return Company.iterate_xml(companies_xml_path)
-
-
-@pytest.fixture
-def companies_xml_path(xml_directory_path: Path) -> Path:
-    # N.B. Discogs uses the term "labels" but this is imprecise, as the entity
-    # actually refers to any company.
-    return xml_directory_path / "discogs_test_labels.xml.gz"
 
 
 @pytest.fixture

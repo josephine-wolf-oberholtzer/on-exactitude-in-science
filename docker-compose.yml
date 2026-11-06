@@ -3,7 +3,7 @@ services:
     build:
       context: .
       dockerfile: backend/Dockerfile
-    command: gunicorn --conf gunicorn.conf.py maps.app:app
+    command: gunicorn "maps.api:create_app()"
     environment:
       GUNICORN_ACCESSLOG: "-"
       GUNICORN_BIND: 0.0.0.0:9090
@@ -12,7 +12,7 @@ services:
       GUNICORN_LOGLEVEL: debug
       GUNICORN_RELOAD: "true"
       GUNICORN_WORKERS: 4
-      GUNICORN_WORKER_CLASS: aiohttp.worker.GunicornUVLoopWebWorker
+      GUNICORN_WORKER_CLASS: uvicorn_worker.UvicornWorker
       GUNICORN_ENABLE_STDIO_INHERITANCE: "true"
     ports:
     - 9090:9090
