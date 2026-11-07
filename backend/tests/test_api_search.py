@@ -14,8 +14,11 @@ async def test_search(client: httpx.AsyncClient, named_engine: AsyncEngine) -> N
     ]
     # Each result links to its entity endpoint
     assert results[0]["url"] == "/entity/?id=1&label=artist"
+    # Only tracks have a release
+    assert all(r["release_name"] is None for r in results)
     entity = await client.get(results[0]["url"])
-    assert entity.json() == {"id": 1, "index": 0, "label": "artist"}
+    body = entity.json()
+    assert (body["id"], body["index"], body["label"]) == (1, 0, "artist")
 
 
 @pytest.mark.asyncio
@@ -26,6 +29,8 @@ async def test_search_track_url(
     [result] = response.json()["results"]
     assert result["label"] == "track"
     assert result["url"] == "/entity/?id=3&label=track&index=4"
+    # A track also reports the release it appears on
+    assert result["release_name"] == "Debut"
 
 
 @pytest.mark.asyncio

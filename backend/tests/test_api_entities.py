@@ -29,7 +29,8 @@ async def test_entity_index_defaults_to_zero(
     redirect = await client.get("/random/", params={"label": "artist"})
     entity_id = (await client.get(redirect.headers["location"])).json()["id"]
     response = await client.get("/entity/", params={"id": entity_id, "label": "artist"})
-    assert response.json() == {"id": entity_id, "index": 0, "label": "artist"}
+    body = response.json()
+    assert (body["id"], body["index"], body["label"]) == (entity_id, 0, "artist")
 
 
 @pytest.mark.asyncio

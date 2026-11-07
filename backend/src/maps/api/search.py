@@ -19,6 +19,7 @@ class SearchResult(BaseModel):
     index: int
     label: str
     name: str
+    release_name: str | None = None
     url: str
 
 
@@ -52,8 +53,9 @@ async def get_entities_by_name(
                 index=vertex.index,
                 label=VertexLabel(vertex.label).name.lower(),
                 name=vertex.name,
+                release_name=release.name if release is not None else None,
                 url=get_vertex_url(request, vertex),
             )
-            for vertex in vertices
+            for vertex, release in vertices
         ]
     )

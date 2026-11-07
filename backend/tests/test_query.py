@@ -38,9 +38,13 @@ async def test_get_vertices_by_name_ignores_diacritics_and_case(
         (2, VertexLabel.ARTIST, "Sigur Rós"),
     )
     async with AsyncSession(engine) as session:
-        assert [v.id for v in await get_vertices_by_name(session, "bjork")] == [1]
-        assert [v.id for v in await get_vertices_by_name(session, "SIGUR ROS")] == [2]
-        assert [v.id for v in await get_vertices_by_name(session, "Sigur Rós")] == [2]
+        assert [v.id for v, _ in await get_vertices_by_name(session, "bjork")] == [1]
+        assert [v.id for v, _ in await get_vertices_by_name(session, "SIGUR ROS")] == [
+            2
+        ]
+        assert [v.id for v, _ in await get_vertices_by_name(session, "Sigur Rós")] == [
+            2
+        ]
 
 
 @pytest.mark.asyncio
@@ -53,7 +57,7 @@ async def test_get_vertices_by_name_orders_by_similarity(engine: AsyncEngine) ->
     )
     async with AsyncSession(engine) as session:
         results = await get_vertices_by_name(session, "Aphex Twin")
-    assert [v.id for v in results] == [2, 3, 1]
+    assert [v.id for v, _ in results] == [2, 3, 1]
 
 
 @pytest.mark.asyncio
@@ -68,8 +72,8 @@ async def test_get_vertices_by_name_restricts_by_label(engine: AsyncEngine) -> N
         companies = await get_vertices_by_name(
             session, "Warp Records", label=VertexLabel.COMPANY
         )
-    assert {v.id for v in both} == {1, 2}
-    assert [v.id for v in companies] == [2]
+    assert {v.id for v, _ in both} == {1, 2}
+    assert [v.id for v, _ in companies] == [2]
 
 
 @pytest.mark.asyncio
@@ -89,3 +93,35 @@ async def test_get_vertices_by_name_requires_three_characters(
     await insert_vertices(engine, (1, VertexLabel.ARTIST, "Bjork"))
     async with AsyncSession(engine) as session:
         assert await get_vertices_by_name(session, name) == []
+
+
+@pytest.mark.asyncio
+async def test_get_vertices_by_name_joins_a_track_to_its_release(
+    engine: AsyncEngine,
+) -> None:
+    async with engine.begin() as connection:
+        await connection.execute(
+            insert(Vertex),
+            [
+                {
+                    "id": 7,
+                    "label": int(label),
+                    "index": index,
+                    "name": name,
+                    "random": 0.5,
+                    "dataset": datetime.date(2026, 1, 1),
+                }
+                for label, index, name in [
+                    (VertexLabel.RELEASE, 0, "Selected Ambient Works"),
+                    (VertexLabel.TRACK, 1, "Xtal"),
+                    # Same ID as a release, but not that release's track
+                    (VertexLabel.ARTIST, 0, "Xtal Artist"),
+                ]
+            ],
+        )
+    async with AsyncSession(engine) as session:
+        results = await get_vertices_by_name(session, "Xtal")
+    by_label = {VertexLabel(v.label): release for v, release in results}
+    assert (release := by_label[VertexLabel.TRACK]) is not None
+    assert release.name == "Selected Ambient Works"
+    assert by_label[VertexLabel.ARTIST] is None

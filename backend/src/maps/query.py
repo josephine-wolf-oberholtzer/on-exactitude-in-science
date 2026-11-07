@@ -1,8 +1,9 @@
 import random
 from collections.abc import Sequence
 
-from sqlalchemy import func, select
+from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import aliased
 
 from .constants import VertexLabel
 from .models import Vertex
@@ -25,9 +26,12 @@ async def get_vertex(
 
 async def get_vertices_by_name(
     session: AsyncSession, name: str, label: VertexLabel | None = None, limit: int = 10
-) -> Sequence[Vertex]:
+) -> Sequence[tuple[Vertex, Vertex | None]]:
     """
     Search vertices by trigram similarity to a name, most similar first.
+
+    Each result is a vertex paired with its parent release if the vertex is a
+    track, or ``None`` otherwise. A track shares its release's ID.
 
     Case and diacritics are ignored. Fewer than three characters is too little to
     form a useful trigram, so no results are returned.
@@ -37,8 +41,18 @@ async def get_vertices_by_name(
     # Matches the expression of the ``ix_vertices_name_trigram`` index
     vertex_name = func.immutable_unaccent(Vertex.name)
     search_name = func.immutable_unaccent(name)
+    release = aliased(Vertex)
     query = (
-        select(Vertex)
+        select(Vertex, release)
+        .outerjoin(
+            release,
+            and_(
+                Vertex.label == int(VertexLabel.TRACK),
+                release.id == Vertex.id,
+                release.label == int(VertexLabel.RELEASE),
+                release.index == 0,
+            ),
+        )
         # ``%`` is true above ``pg_trgm.similarity_threshold`` and uses the index
         .where(vertex_name.op("%")(search_name))
         .order_by(func.similarity(vertex_name, search_name).desc(), Vertex.name)
@@ -46,7 +60,7 @@ async def get_vertices_by_name(
     )
     if label is not None:
         query = query.where(Vertex.label == int(label))
-    return (await session.scalars(query)).all()
+    return (await session.execute(query)).tuples().all()
 
 
 async def get_random_vertex(
