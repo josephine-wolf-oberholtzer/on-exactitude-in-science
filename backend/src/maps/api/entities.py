@@ -41,7 +41,7 @@ async def get_entity(
     ) is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, f"No {label.value} {id}")
     return EntityResponse(
-        id=vertex.id,
+        id=vertex.eid,
         index=vertex.index,
         label=VertexLabel(vertex.label).name.lower(),
         name=vertex.name,

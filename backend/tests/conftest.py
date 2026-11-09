@@ -135,7 +135,7 @@ async def named_engine(engine: AsyncEngine) -> AsyncEngine:
             insert(Vertex),
             [
                 {
-                    "id": id_,
+                    "eid": id_,
                     "label": int(label),
                     "index": index,
                     "name": name,

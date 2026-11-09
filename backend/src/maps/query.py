@@ -12,14 +12,14 @@ MINIMUM_NAME_LENGTH = 3
 
 
 async def get_vertex(
-    session: AsyncSession, id: int, label: VertexLabel, index: int = 0
+    session: AsyncSession, eid: int, label: VertexLabel, index: int = 0
 ) -> Vertex | None:
     """
-    Get a vertex by its primary key, or ``None`` if there is no such vertex.
+    Get a vertex by its entity ID, label and index, or ``None`` if there is none.
     """
     return await session.scalar(
         select(Vertex).where(
-            Vertex.id == id, Vertex.label == int(label), Vertex.index == index
+            Vertex.eid == eid, Vertex.label == int(label), Vertex.index == index
         )
     )
 
@@ -48,7 +48,7 @@ async def get_vertices_by_name(
             release,
             and_(
                 Vertex.label == int(VertexLabel.TRACK),
-                release.id == Vertex.id,
+                release.eid == Vertex.eid,
                 release.label == int(VertexLabel.RELEASE),
                 release.index == 0,
             ),

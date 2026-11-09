@@ -1,7 +1,7 @@
 import datetime
 from typing import TypedDict
 
-from sqlalchemy import Index, String, func, literal_column, text
+from sqlalchemy import BigInteger, Index, String, func, literal_column, text
 from sqlalchemy.dialects.postgresql import ARRAY, DATE, JSONB, SMALLINT
 from sqlalchemy.orm import DeclarativeBase, Mapped, MappedAsDataclass, mapped_column
 
@@ -26,9 +26,14 @@ class Vertex(Base):
 
     __tablename__ = "vertices"
 
-    id: Mapped[int] = mapped_column(primary_key=True)
-    label: Mapped[VertexLabel] = mapped_column(SMALLINT, primary_key=True)
-    index: Mapped[int] = mapped_column(SMALLINT, primary_key=True)
+    id: Mapped[int] = mapped_column(
+        BigInteger, primary_key=True, autoincrement=True, init=False
+    )
+    # The entity's ID within the Discogs system. Together with the label and the
+    # index, it uniquely identifies a vertex.
+    eid: Mapped[int]
+    label: Mapped[VertexLabel] = mapped_column(SMALLINT)
+    index: Mapped[int] = mapped_column(SMALLINT)
 
     name: Mapped[str] = mapped_column(String)
     random: Mapped[float]
@@ -44,6 +49,7 @@ class Vertex(Base):
     year: Mapped[int | None]
 
     __table_args__ = (
+        Index("ix_vertices_eid_label_index", "eid", "label", "index", unique=True),
         Index("ix_vertices_label_random", "label", "random"),
         Index(
             "ix_vertices_name_trigram",
@@ -66,10 +72,10 @@ class Edge(Base):
 
     __tablename__ = "edges"
 
-    this_id: Mapped[int] = mapped_column(primary_key=True)
+    this_eid: Mapped[int] = mapped_column(primary_key=True)
     this_label: Mapped[VertexLabel] = mapped_column(SMALLINT, primary_key=True)
     this_index: Mapped[int] = mapped_column(SMALLINT, primary_key=True)
-    that_id: Mapped[int] = mapped_column(primary_key=True)
+    that_eid: Mapped[int] = mapped_column(primary_key=True)
     that_label: Mapped[VertexLabel] = mapped_column(SMALLINT, primary_key=True)
     that_index: Mapped[int] = mapped_column(SMALLINT, primary_key=True)
     direction: Mapped[int] = mapped_column(SMALLINT, primary_key=True)

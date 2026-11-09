@@ -49,7 +49,7 @@ async def get_entities_by_name(
     return SearchResponse(
         results=[
             SearchResult(
-                id=vertex.id,
+                id=vertex.eid,
                 index=vertex.index,
                 label=VertexLabel(vertex.label).name.lower(),
                 name=vertex.name,

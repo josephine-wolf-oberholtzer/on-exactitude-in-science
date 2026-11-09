@@ -37,14 +37,14 @@ def count_expected_rows(
     edge_keys: set[tuple] = set()
     for entity in itertools.islice(entity_class.iterate_xml(xml_path), limit):
         for vertex in entity.to_vertex_dicts(date):
-            vertex_keys.add((vertex["id"], vertex["label"], vertex["index"]))
+            vertex_keys.add((vertex["eid"], vertex["label"], vertex["index"]))
         for edge in entity.to_edge_dicts(date):
             edge_keys.add(
                 (
-                    edge["this_id"],
+                    edge["this_eid"],
                     edge["this_label"],
                     edge["this_index"],
-                    edge["that_id"],
+                    edge["that_eid"],
                     edge["that_label"],
                     edge["that_index"],
                     edge["direction"],
@@ -107,6 +107,32 @@ async def test_load_is_idempotent(
     await run_load(entity_class, data_directory_path=xml_directory_path, engine=engine)
     assert await count_rows(engine, "vertices") == vertex_count
     assert await count_rows(engine, "edges") == edge_count
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("entity_class", ENTITIES, ids=lambda c: c.__name__)
+async def test_load_keeps_vertex_ids_stable(
+    entity_class: type[Entity],
+    engine: AsyncEngine,
+    xml_directory_path: Path,
+) -> None:
+    """
+    Reloading updates vertices in place, so their surrogate IDs don't change.
+    """
+
+    async def get_ids() -> dict[tuple[int, int, int], int]:
+        async with engine.connect() as connection:
+            result = await connection.execute(
+                text('SELECT eid, label, "index", id FROM vertices')
+            )
+            return {(eid, label, index): id_ for eid, label, index, id_ in result}
+
+    await run_load(entity_class, data_directory_path=xml_directory_path, engine=engine)
+    ids = await get_ids()
+    assert ids
+    assert len(set(ids.values())) == len(ids)
+    await run_load(entity_class, data_directory_path=xml_directory_path, engine=engine)
+    assert await get_ids() == ids
 
 
 @pytest.mark.asyncio
@@ -188,7 +214,7 @@ async def test_load_writes_checkpoint_and_resumes(
         )
     expected, _ = count_expected_rows(Artist, xml_path, date)
     skipped_keys = {
-        (v["id"], v["label"], v["index"]) for v in entities[0].to_vertex_dicts(date)
+        (v["eid"], v["label"], v["index"]) for v in entities[0].to_vertex_dicts(date)
     }
     assert await count_rows(engine, "vertices") <= full_vertices
     assert await count_rows(engine, "vertices") >= expected - len(skipped_keys)

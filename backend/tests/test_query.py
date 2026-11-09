@@ -16,7 +16,7 @@ async def insert_vertices(
             insert(Vertex),
             [
                 {
-                    "id": id_,
+                    "eid": id_,
                     "label": int(label),
                     "index": 0,
                     "name": name,
@@ -38,11 +38,11 @@ async def test_get_vertices_by_name_ignores_diacritics_and_case(
         (2, VertexLabel.ARTIST, "Sigur Rós"),
     )
     async with AsyncSession(engine) as session:
-        assert [v.id for v, _ in await get_vertices_by_name(session, "bjork")] == [1]
-        assert [v.id for v, _ in await get_vertices_by_name(session, "SIGUR ROS")] == [
+        assert [v.eid for v, _ in await get_vertices_by_name(session, "bjork")] == [1]
+        assert [v.eid for v, _ in await get_vertices_by_name(session, "SIGUR ROS")] == [
             2
         ]
-        assert [v.id for v, _ in await get_vertices_by_name(session, "Sigur Rós")] == [
+        assert [v.eid for v, _ in await get_vertices_by_name(session, "Sigur Rós")] == [
             2
         ]
 
@@ -57,7 +57,7 @@ async def test_get_vertices_by_name_orders_by_similarity(engine: AsyncEngine) ->
     )
     async with AsyncSession(engine) as session:
         results = await get_vertices_by_name(session, "Aphex Twin")
-    assert [v.id for v, _ in results] == [2, 3, 1]
+    assert [v.eid for v, _ in results] == [2, 3, 1]
 
 
 @pytest.mark.asyncio
@@ -72,8 +72,8 @@ async def test_get_vertices_by_name_restricts_by_label(engine: AsyncEngine) -> N
         companies = await get_vertices_by_name(
             session, "Warp Records", label=VertexLabel.COMPANY
         )
-    assert {v.id for v, _ in both} == {1, 2}
-    assert [v.id for v, _ in companies] == [2]
+    assert {v.eid for v, _ in both} == {1, 2}
+    assert [v.eid for v, _ in companies] == [2]
 
 
 @pytest.mark.asyncio
@@ -104,7 +104,7 @@ async def test_get_vertices_by_name_joins_a_track_to_its_release(
             insert(Vertex),
             [
                 {
-                    "id": 7,
+                    "eid": 7,
                     "label": int(label),
                     "index": index,
                     "name": name,

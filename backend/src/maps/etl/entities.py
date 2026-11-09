@@ -37,9 +37,9 @@ class VertexDict(TypedDict):
 
     country: NotRequired[str | None]
     dataset: datetime.date
+    eid: int
     formats: NotRequired[list[str] | None]
     genres: NotRequired[list[str] | None]
-    id: int
     index: int
     label: VertexLabel
     name: str
@@ -56,10 +56,10 @@ class EdgeDict(TypedDict):
     For use in typing bulk upsert statements.
     """
 
-    this_id: int
+    this_eid: int
     this_label: VertexLabel
     this_index: int
-    that_id: int
+    that_eid: int
     that_label: VertexLabel
     that_index: int
     name: str
@@ -108,15 +108,31 @@ class Entity:
             return f'"{name}"'
 
         table: Any = model.__table__
-        column_names = [column.name for column in table.columns]
-        key_names = [column.name for column in table.primary_key.columns]
+        # The database assigns an autoincrementing surrogate key itself, so it is
+        # neither copied nor updated.
+        columns = [
+            column
+            for column in table.columns
+            if column is not table.autoincrement_column
+        ]
+        column_names = [column.name for column in columns]
+        # Conflicts are detected on the natural key: a unique index if the table
+        # has one, otherwise the primary key.
+        unique_index = next((index for index in table.indexes if index.unique), None)
+        key_names = [
+            column.name
+            for column in (
+                unique_index.columns
+                if unique_index is not None
+                else table.primary_key.columns
+            )
+        ]
         # Postgres refuses to update the same row twice in one statement, so
         # collapse duplicate keys up front. The last occurrence wins.
         deduplicated = {tuple(row[name] for name in key_names): row for row in rows}
         records = [
             tuple(
-                _encode_value(row.get(column.name), column.type)
-                for column in table.columns
+                _encode_value(row.get(column.name), column.type) for column in columns
             )
             for _, row in sorted(deduplicated.items())  # Stable lock order
         ]
@@ -125,10 +141,11 @@ class Entity:
         uuid4 = str(uuid.uuid4()).replace("-", "")
         temp_table_name = f"{table.name}_import_{uuid4}"
         update_names = [name for name in column_names if name not in key_names]
+        quoted_column_names = ", ".join(map(quote, column_names))
         await connection.execute(
             text(
-                f"CREATE TEMP TABLE {quote(temp_table_name)} "
-                f"(LIKE {quote(table.name)} INCLUDING DEFAULTS) ON COMMIT DROP"
+                f"CREATE TEMP TABLE {quote(temp_table_name)} ON COMMIT DROP AS "
+                f"SELECT {quoted_column_names} FROM {quote(table.name)} WITH NO DATA"
             )
         )
         raw_connection = await connection.get_raw_connection()
@@ -137,8 +154,8 @@ class Entity:
         )
         await connection.execute(
             text(
-                f"INSERT INTO {quote(table.name)} "
-                f"SELECT {', '.join(map(quote, column_names))} "
+                f"INSERT INTO {quote(table.name)} ({quoted_column_names}) "
+                f"SELECT {quoted_column_names} "
                 f"FROM {quote(temp_table_name)} "
                 f"ON CONFLICT ({', '.join(map(quote, key_names))}) DO UPDATE SET "
                 + ", ".join(
@@ -198,10 +215,10 @@ class Entity:
         self, that: Entity, name: str, direction: Direction, dataset: datetime.date
     ) -> EdgeDict:
         return EdgeDict(
-            this_id=self.id,
+            this_eid=self.id,
             this_label=self.label,
             this_index=int(getattr(self, "index", 0)),
-            that_id=that.id,
+            that_eid=that.id,
             that_label=that.label,
             that_index=int(getattr(that, "index", 0)),
             name=name,
@@ -428,7 +445,7 @@ class Artist(Entity):
         return [
             VertexDict(
                 dataset=dataset,
-                id=self.id,
+                eid=self.id,
                 index=0,
                 label=VertexLabel.ARTIST,
                 name=self.name,
@@ -513,7 +530,7 @@ class Company(Entity):
         return [
             VertexDict(
                 dataset=dataset,
-                id=self.id,
+                eid=self.id,
                 index=0,
                 label=VertexLabel.COMPANY,
                 name=self.name,
@@ -566,7 +583,7 @@ class Master(Entity):
         return [
             VertexDict(
                 dataset=dataset,
-                id=self.id,
+                eid=self.id,
                 index=0,
                 label=VertexLabel.MASTER,
                 name=self.name,
@@ -902,9 +919,9 @@ class Release(Entity):
             VertexDict(
                 country=self.country,
                 dataset=dataset,
+                eid=self.id,
                 formats=self.formats,
                 genres=self.genres,
-                id=self.id,
                 index=0,
                 label=VertexLabel.RELEASE,
                 name=self.name,
@@ -918,9 +935,9 @@ class Release(Entity):
                 VertexDict(
                     country=self.country,
                     dataset=dataset,
+                    eid=self.id,
                     formats=self.formats,
                     genres=self.genres,
-                    id=self.id,
                     index=track.index,
                     label=VertexLabel.TRACK,
                     name=track.name,
