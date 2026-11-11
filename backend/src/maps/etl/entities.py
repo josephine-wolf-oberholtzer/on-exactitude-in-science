@@ -98,6 +98,25 @@ def _compute_edge_id(
     return hashlib.blake2b(payload.encode(), digest_size=16).hexdigest()
 
 
+def _reverse_edge_dict(edge_dict: EdgeDict) -> EdgeDict:
+    """
+    Describe an edge from its other end: swap ``this_`` with ``that_`` and reverse
+    the direction. The computed ID is the same, as it ignores orientation.
+    """
+    return EdgeDict(
+        computed_id=edge_dict["computed_id"],
+        dataset=edge_dict["dataset"],
+        direction=Direction(-edge_dict["direction"]),
+        name=edge_dict["name"],
+        that_eid=edge_dict["this_eid"],
+        that_index=edge_dict["this_index"],
+        that_label=edge_dict["this_label"],
+        this_eid=edge_dict["that_eid"],
+        this_index=edge_dict["that_index"],
+        this_label=edge_dict["that_label"],
+    )
+
+
 def _encode_value(value: Any, type_: Any) -> Any:
     """
     Coerce a Python value to what asyncpg's binary COPY expects.
@@ -452,8 +471,11 @@ class Artist(Entity):
     def to_edge_dicts(self, dataset: datetime.date) -> list[EdgeDict]:
         """
         Generate edge dicts for bulk upsertion into the database.
+
+        Each edge is followed by its reverse, so that it can be traversed from
+        either end.
         """
-        return [
+        edge_dicts: list[EdgeDict] = [
             *(
                 self.build_edge_dict(
                     dataset=dataset,
@@ -473,6 +495,7 @@ class Artist(Entity):
                 for member in self.members
             ),
         ]
+        return [*edge_dicts, *map(_reverse_edge_dict, edge_dicts)]
 
     def to_vertex_dicts(self, dataset: datetime.date) -> list[VertexDict]:
         """
@@ -546,8 +569,11 @@ class Company(Entity):
     def to_edge_dicts(self, dataset: datetime.date) -> list[EdgeDict]:
         """
         Generate edge dicts for bulk upsertion into the database.
+
+        Each edge is followed by its reverse, so that it can be traversed from
+        either end.
         """
-        return [
+        edge_dicts: list[EdgeDict] = [
             *(
                 subsidiary.build_edge_dict(
                     dataset=dataset,
@@ -558,6 +584,7 @@ class Company(Entity):
                 for subsidiary in self.subsidiaries
             ),
         ]
+        return [*edge_dicts, *map(_reverse_edge_dict, edge_dicts)]
 
     def to_vertex_dicts(self, dataset: datetime.date) -> list[VertexDict]:
         """
@@ -865,6 +892,9 @@ class Release(Entity):
     def to_edge_dicts(self, dataset: datetime.date) -> list[EdgeDict]:
         """
         Generate edge dicts for bulk upsertion into the database.
+
+        Each edge is followed by its reverse, so that it can be traversed from
+        either end.
         """
         edge_dicts: list[EdgeDict] = [
             *(
@@ -945,7 +975,7 @@ class Release(Entity):
                     ),
                 ]
             )
-        return edge_dicts
+        return [*edge_dicts, *map(_reverse_edge_dict, edge_dicts)]
 
     def to_vertex_dicts(self, dataset: datetime.date) -> list[VertexDict]:
         """

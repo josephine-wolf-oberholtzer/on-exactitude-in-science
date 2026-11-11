@@ -7,24 +7,44 @@ from maps.etl import Artist, Company, Master, Release
 from maps.etl.entities import _compute_edge_id
 
 
-def with_computed_id(edge_dict: dict) -> dict:
-    return {
-        **edge_dict,
-        "computed_id": _compute_edge_id(
-            direction=edge_dict["direction"],
-            name=edge_dict["name"],
-            that=(
-                edge_dict["that_label"],
-                edge_dict["that_eid"],
-                edge_dict["that_index"],
+def with_reversed(edge_dicts: list[dict]) -> list[dict]:
+    """
+    Add computed IDs to expected edge dicts, followed by their reverses.
+    """
+    edges = [
+        {
+            **edge_dict,
+            "computed_id": _compute_edge_id(
+                direction=edge_dict["direction"],
+                name=edge_dict["name"],
+                that=(
+                    edge_dict["that_label"],
+                    edge_dict["that_eid"],
+                    edge_dict["that_index"],
+                ),
+                this=(
+                    edge_dict["this_label"],
+                    edge_dict["this_eid"],
+                    edge_dict["this_index"],
+                ),
             ),
-            this=(
-                edge_dict["this_label"],
-                edge_dict["this_eid"],
-                edge_dict["this_index"],
-            ),
-        ),
-    }
+        }
+        for edge_dict in edge_dicts
+    ]
+    reverses = [
+        {
+            **edge,
+            "direction": Direction(-edge["direction"]),
+            "that_eid": edge["this_eid"],
+            "that_index": edge["this_index"],
+            "that_label": edge["this_label"],
+            "this_eid": edge["that_eid"],
+            "this_index": edge["that_index"],
+            "this_label": edge["that_label"],
+        }
+        for edge in edges
+    ]
+    return [*edges, *reverses]
 
 
 @pytest.fixture
@@ -62,7 +82,7 @@ def test_Artist_to_edge_dicts(
     while (actual_artist := next(artists_iterator)).id != artist_id:
         continue
     assert actual_artist.to_edge_dicts(today) == [
-        {**with_computed_id(d), "dataset": today} for d in expected_edge_dicts
+        {**d, "dataset": today} for d in with_reversed(expected_edge_dicts)
     ]
 
 
@@ -135,7 +155,7 @@ def test_Company_to_edge_dicts(
     while (actual_company := next(companies_iterator)).id != company_id:
         continue
     assert actual_company.to_edge_dicts(today) == [
-        {**with_computed_id(d), "dataset": today} for d in expected_edge_dicts
+        {**d, "dataset": today} for d in with_reversed(expected_edge_dicts)
     ]
 
 
@@ -184,7 +204,7 @@ def test_Master_to_edge_dicts(
     while (actual_master := next(masters_iterator)).id != master_id:
         continue
     assert actual_master.to_edge_dicts(today) == [
-        {**with_computed_id(d), "dataset": today} for d in expected_edge_dicts
+        {**d, "dataset": today} for d in with_reversed(expected_edge_dicts)
     ]
 
 
@@ -310,7 +330,7 @@ def test_Release_to_edge_dicts(
     while (actual_release := next(releases_iterator)).id != release_id:
         continue
     assert actual_release.to_edge_dicts(today) == [
-        {**with_computed_id(d), "dataset": today} for d in expected_edge_dicts
+        {**d, "dataset": today} for d in with_reversed(expected_edge_dicts)
     ]
 
 
@@ -458,3 +478,20 @@ def test_Release_to_vertex_dicts(
     assert [
         dict_ | {"random": ...} for dict_ in actual_release.to_vertex_dicts(today)
     ] == [{**d, "dataset": today} for d in expected_vertex_dicts]
+
+
+def test_Release_to_edge_dicts_pairs_each_edge_with_its_reverse(
+    releases_iterator: Iterator[Release], today: datetime.date
+) -> None:
+    edge_dicts = next(releases_iterator).to_edge_dicts(today)
+    assert edge_dicts
+    assert len(edge_dicts) % 2 == 0
+    for edge, reverse in zip(
+        edge_dicts[: len(edge_dicts) // 2], edge_dicts[len(edge_dicts) // 2 :]
+    ):
+        assert reverse["computed_id"] == edge["computed_id"]
+        assert reverse["direction"] == -edge["direction"]
+        assert reverse["name"] == edge["name"]
+        for field in ("eid", "index", "label"):
+            assert reverse[f"this_{field}"] == edge[f"that_{field}"]  # type: ignore[literal-required]
+            assert reverse[f"that_{field}"] == edge[f"this_{field}"]  # type: ignore[literal-required]
