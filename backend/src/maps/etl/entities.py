@@ -1,6 +1,7 @@
 import dataclasses
 import datetime
 import enum
+import hashlib
 import json
 import logging
 import random
@@ -65,6 +66,36 @@ class EdgeDict(TypedDict):
     name: str
     direction: int
     dataset: datetime.date
+    computed_id: str
+
+
+def _compute_edge_id(
+    *,
+    direction: int,
+    name: str,
+    that: tuple[int, int, int],
+    this: tuple[int, int, int],
+) -> str:
+    """
+    Compute a stable ID for an edge, as a hex digest.
+
+    ``this`` and ``that`` are ``(label, eid, index)`` triples, in the order of the
+    edge's primary key. The triples are sorted lowest first before hashing, so an
+    edge hashes the same whichever end is called "this". Swapping the ends also
+    flips the direction, so that the two orientations of one edge agree, while the
+    opposite edge between the same vertices does not.
+
+    Uses BLAKE2b rather than ``hash()``, which is randomized per process, so the ID
+    is the same across processes and Python versions.
+    """
+    if that < this:
+        this, that = that, this
+        direction = -direction
+    payload = json.dumps(
+        [*map(int, this), *map(int, that), int(direction), str(name)],
+        separators=(",", ":"),
+    )
+    return hashlib.blake2b(payload.encode(), digest_size=16).hexdigest()
 
 
 def _encode_value(value: Any, type_: Any) -> Any:
@@ -214,7 +245,12 @@ class Entity:
     def build_edge_dict(
         self, that: Entity, name: str, direction: Direction, dataset: datetime.date
     ) -> EdgeDict:
+        this_triple = (int(self.label), self.id, int(getattr(self, "index", 0)))
+        that_triple = (int(that.label), that.id, int(getattr(that, "index", 0)))
         return EdgeDict(
+            computed_id=_compute_edge_id(
+                direction=direction, name=name, that=that_triple, this=this_triple
+            ),
             this_eid=self.id,
             this_label=self.label,
             this_index=int(getattr(self, "index", 0)),

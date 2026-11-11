@@ -1,7 +1,7 @@
 import datetime
 from typing import TypedDict
 
-from sqlalchemy import BigInteger, Index, String, func, literal_column, text
+from sqlalchemy import BigInteger, Index, String, text
 from sqlalchemy.dialects.postgresql import ARRAY, DATE, JSONB, SMALLINT
 from sqlalchemy.orm import DeclarativeBase, Mapped, MappedAsDataclass, mapped_column
 
@@ -49,16 +49,11 @@ class Vertex(Base):
     year: Mapped[int | None]
 
     __table_args__ = (
-        Index("ix_vertices_eid_label_index", "eid", "label", "index", unique=True),
+        Index("ix_vertices_label_eid_index", "label", "eid", "index", unique=True),
         Index("ix_vertices_label_random", "label", "random"),
         Index(
             "ix_vertices_name_trigram",
             text("immutable_unaccent(name) gin_trgm_ops"),
-            postgresql_using="gin",
-        ),
-        Index(
-            "ix_vertices_name_ts_vector",
-            func.to_tsvector(literal_column("'english'"), name),
             postgresql_using="gin",
         ),
         Index("ix_vertices_random", "random"),
@@ -72,12 +67,13 @@ class Edge(Base):
 
     __tablename__ = "edges"
 
-    this_eid: Mapped[int] = mapped_column(primary_key=True)
     this_label: Mapped[VertexLabel] = mapped_column(SMALLINT, primary_key=True)
+    this_eid: Mapped[int] = mapped_column(primary_key=True)
     this_index: Mapped[int] = mapped_column(SMALLINT, primary_key=True)
-    that_eid: Mapped[int] = mapped_column(primary_key=True)
     that_label: Mapped[VertexLabel] = mapped_column(SMALLINT, primary_key=True)
+    that_eid: Mapped[int] = mapped_column(primary_key=True)
     that_index: Mapped[int] = mapped_column(SMALLINT, primary_key=True)
     direction: Mapped[int] = mapped_column(SMALLINT, primary_key=True)
     name: Mapped[str] = mapped_column(primary_key=True)
     dataset: Mapped[datetime.date] = mapped_column(DATE)
+    computed_id: Mapped[str] = mapped_column(String)

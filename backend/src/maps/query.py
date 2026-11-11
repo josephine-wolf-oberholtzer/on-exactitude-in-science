@@ -1,3 +1,4 @@
+import enum
 import random
 from collections.abc import Sequence
 
@@ -6,9 +7,57 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
 from .constants import VertexLabel
-from .models import Vertex
+from .models import Edge, Vertex
 
 MINIMUM_NAME_LENGTH = 3
+
+
+class BooleanOp(enum.StrEnum):
+    AND = "and"
+    OR = "or"
+
+
+async def get_locality(
+    *,
+    session: AsyncSession,
+    center_eid: int,
+    center_index: int = 0,
+    center_label: VertexLabel,
+    countries: set[str] | None = None,
+    formats: set[str] | None = None,
+    formats_op: BooleanOp = BooleanOp.OR,
+    genres: set[str] | None = None,
+    labels: set[VertexLabel] | None = None,
+    limit: int = 200,
+    main_releases_only: bool = True,
+    offset: set[str] | None = 0,
+    roles: set[str] | None = None,
+    styles: set[str] | None = None,
+    styles_op: BooleanOp = BooleanOp.OR,
+    years: tuple[int | None, int | None] = (None, None),
+) -> tuple[Sequence[Vertex], Sequence[Edge]]:
+    raise NotImplementedError
+
+
+async def get_neighbors(
+    *,
+    session: AsyncSession,
+    initial_vertex_ids: Sequence[int],
+    excluded_vertex_ids: Sequence[int],
+    countries: set[str] | None = None,
+    formats: set[str] | None = None,
+    formats_op: BooleanOp = BooleanOp.OR,
+    genres: set[str] | None = None,
+    labels: set[VertexLabel] | None = None,
+    limit: int = 200,
+    main_releases_only: bool = True,
+    offset: set[str] | None = 0,
+    roles: set[str] | None = None,
+    styles: set[str] | None = None,
+    styles_op: BooleanOp = BooleanOp.OR,
+    years: tuple[int | None, int | None] = (None, None),
+) -> Sequence[Vertex]:
+    raise NotImplementedError
 
 
 async def get_vertex(

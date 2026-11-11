@@ -4,6 +4,27 @@ from collections.abc import Iterator
 import pytest
 from maps.constants import Direction, EdgeLabel, VertexLabel
 from maps.etl import Artist, Company, Master, Release
+from maps.etl.entities import _compute_edge_id
+
+
+def with_computed_id(edge_dict: dict) -> dict:
+    return {
+        **edge_dict,
+        "computed_id": _compute_edge_id(
+            direction=edge_dict["direction"],
+            name=edge_dict["name"],
+            that=(
+                edge_dict["that_label"],
+                edge_dict["that_eid"],
+                edge_dict["that_index"],
+            ),
+            this=(
+                edge_dict["this_label"],
+                edge_dict["this_eid"],
+                edge_dict["this_index"],
+            ),
+        ),
+    }
 
 
 @pytest.fixture
@@ -41,7 +62,7 @@ def test_Artist_to_edge_dicts(
     while (actual_artist := next(artists_iterator)).id != artist_id:
         continue
     assert actual_artist.to_edge_dicts(today) == [
-        {**d, "dataset": today} for d in expected_edge_dicts
+        {**with_computed_id(d), "dataset": today} for d in expected_edge_dicts
     ]
 
 
@@ -114,7 +135,7 @@ def test_Company_to_edge_dicts(
     while (actual_company := next(companies_iterator)).id != company_id:
         continue
     assert actual_company.to_edge_dicts(today) == [
-        {**d, "dataset": today} for d in expected_edge_dicts
+        {**with_computed_id(d), "dataset": today} for d in expected_edge_dicts
     ]
 
 
@@ -163,7 +184,7 @@ def test_Master_to_edge_dicts(
     while (actual_master := next(masters_iterator)).id != master_id:
         continue
     assert actual_master.to_edge_dicts(today) == [
-        {**d, "dataset": today} for d in expected_edge_dicts
+        {**with_computed_id(d), "dataset": today} for d in expected_edge_dicts
     ]
 
 
@@ -289,7 +310,7 @@ def test_Release_to_edge_dicts(
     while (actual_release := next(releases_iterator)).id != release_id:
         continue
     assert actual_release.to_edge_dicts(today) == [
-        {**d, "dataset": today} for d in expected_edge_dicts
+        {**with_computed_id(d), "dataset": today} for d in expected_edge_dicts
     ]
 
 

@@ -45,12 +45,13 @@ def upgrade() -> None:
         sa.Column("direction", sa.SMALLINT(), nullable=False),
         sa.Column("name", sa.String(), nullable=False),
         sa.Column("dataset", sa.DATE(), nullable=False),
+        sa.Column("computed_id", sa.String(), nullable=False),
         sa.PrimaryKeyConstraint(
-            "this_eid",
             "this_label",
+            "this_eid",
             "this_index",
-            "that_eid",
             "that_label",
+            "that_eid",
             "that_index",
             "direction",
             "name",
@@ -88,13 +89,6 @@ def upgrade() -> None:
         "ix_vertices_name_trigram",
         "vertices",
         [sa.text("immutable_unaccent(name) gin_trgm_ops")],
-        unique=False,
-        postgresql_using="gin",
-    )
-    op.create_index(
-        "ix_vertices_name_ts_vector",
-        "vertices",
-        [sa.literal_column("to_tsvector('english', name)")],
         unique=False,
         postgresql_using="gin",
     )
