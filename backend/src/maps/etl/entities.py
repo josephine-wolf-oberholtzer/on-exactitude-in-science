@@ -98,6 +98,19 @@ def _compute_edge_id(
     return hashlib.blake2b(payload.encode(), digest_size=16).hexdigest()
 
 
+def _encode_value(value: Any, type_: Any) -> Any:
+    """
+    Coerce a Python value to what asyncpg's binary COPY expects.
+    """
+    if value is None:
+        return None
+    if isinstance(type_, JSONB):
+        return json.dumps(value)  # asyncpg's default jsonb codec takes text
+    if isinstance(value, enum.IntEnum):
+        return int(value)
+    return value
+
+
 def _reverse_edge_dict(edge_dict: EdgeDict) -> EdgeDict:
     """
     Describe an edge from its other end: swap ``this_`` with ``that_`` and reverse
@@ -115,19 +128,6 @@ def _reverse_edge_dict(edge_dict: EdgeDict) -> EdgeDict:
         this_index=edge_dict["that_index"],
         this_label=edge_dict["that_label"],
     )
-
-
-def _encode_value(value: Any, type_: Any) -> Any:
-    """
-    Coerce a Python value to what asyncpg's binary COPY expects.
-    """
-    if value is None:
-        return None
-    if isinstance(type_, JSONB):
-        return json.dumps(value)  # asyncpg's default jsonb codec takes text
-    if isinstance(value, enum.IntEnum):
-        return int(value)
-    return value
 
 
 @dataclasses.dataclass(unsafe_hash=True)
