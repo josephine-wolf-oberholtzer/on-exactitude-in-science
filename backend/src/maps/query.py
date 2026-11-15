@@ -2,7 +2,7 @@ import enum
 import random
 from collections.abc import Sequence
 
-from sqlalchemy import and_, func, select
+from sqlalchemy import and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
@@ -39,25 +39,88 @@ async def get_locality(
     raise NotImplementedError
 
 
-async def get_neighbors(
+async def _get_locality_loop(
     *,
     session: AsyncSession,
     initial_vertex_ids: Sequence[int],
     excluded_vertex_ids: Sequence[int],
+    labels: set[VertexLabel] | None = None,
+    roles: set[str] | None = None,
+    # ...
     countries: set[str] | None = None,
+    genres: set[str] | None = None,
     formats: set[str] | None = None,
     formats_op: BooleanOp = BooleanOp.OR,
-    genres: set[str] | None = None,
-    labels: set[VertexLabel] | None = None,
-    limit: int = 200,
-    main_releases_only: bool = True,
-    offset: set[str] | None = 0,
-    roles: set[str] | None = None,
     styles: set[str] | None = None,
     styles_op: BooleanOp = BooleanOp.OR,
     years: tuple[int | None, int | None] = (None, None),
+    main_releases_only: bool = True,
+    limit: int = 10,
+    offset: set[str] | None = 0,
 ) -> Sequence[Vertex]:
-    raise NotImplementedError
+    # alias left-hand and right-hand vertices
+    this_vertex = aliased(Vertex, name="this_vertex")
+    that_vertex = aliased(Vertex, name="that_vertex")
+    # release & track filtering predicates
+    predicates = []
+    if countries:
+        predicates.append(that_vertex.country in countries)
+    if formats:
+        predicates.append(
+            that_vertex.formats.overlap(formats)
+            if formats_op == BooleanOp.OR
+            else that_vertex.formats.contains(formats)
+        )
+    if genres:
+        predicates.append(that_vertex.genre in genres)
+    if styles:
+        predicates.append(
+            that_vertex.styles.overlap(styles)
+            if styles_op == BooleanOp.OR
+            else that_vertex.styles.contains(styles)
+        )
+    if years[0] is not None and years[1] is not None:
+        predicates.append(
+            that_vertex.year.is_(None) or (years[0] <= that_vertex.year <= years[1])
+        )
+    elif years[0] is not None:
+        predicates.append(that_vertex.year.is_(None) or years[0] <= that_vertex.year)
+    elif years[1] is not None:
+        predicates.append(that_vertex.year.is_(None) or that_vertex.year <= years[1])
+    query = (
+        select(this_vertex, Edge, that_vertex)
+        .join(
+            Edge,
+            and_(
+                Edge.this_label == this_vertex.label,
+                Edge.this_eid == this_vertex.eid,
+                Edge.this_index == this_vertex.index,
+            ),
+        )
+        .join(
+            that_vertex,
+            and_(
+                that_vertex.label == Edge.that_label,
+                that_vertex.eid == Edge.that_eid,
+                that_vertex.index == Edge.that_index,
+            ),
+        )
+        .where(Edge.name.in_(roles))
+        .where(that_vertex.id.not_in(excluded_vertex_ids))
+        .where(this_vertex.id.in_(initial_vertex_ids))
+    )
+    if labels:
+        query = query.where(that_vertex.label.in_(labels))
+    if predicates:
+        query = query.where(
+            or_(
+                that_vertex.label.in_(
+                    [VertexLabel.ARTIST, VertexLabel.COMPANY, VertexLabel.MASTER]
+                ),
+                and_(*predicates),
+            )
+        )
+    return (await session.execute(query)).tuples().all()
 
 
 async def get_vertex(
