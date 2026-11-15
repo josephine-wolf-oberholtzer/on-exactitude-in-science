@@ -164,7 +164,7 @@ async def _get_locality_neighbors(
             else other_vertex.formats.contains(formats)
         )
     if genres:
-        predicates.append(other_vertex.genre.in_(genres))
+        predicates.append(other_vertex.genres.overlap(genres))
     if styles:
         predicates.append(
             other_vertex.styles.overlap(styles)

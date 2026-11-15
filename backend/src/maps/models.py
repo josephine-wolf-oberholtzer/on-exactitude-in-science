@@ -41,7 +41,7 @@ class Vertex(Base):
 
     country: Mapped[str | None]
     formats: Mapped[list[str] | None] = mapped_column(ARRAY(String))
-    genre: Mapped[str]
+    genres: Mapped[list[str] | None] = mapped_column(ARRAY(String))
     position: Mapped[str | None]
     primacy: Mapped[bool | None]
     styles: Mapped[list[str] | None] = mapped_column(ARRAY(String))
