@@ -2,7 +2,7 @@ import enum
 import random
 from collections.abc import Sequence
 
-from sqlalchemy import and_, func, or_, select, true
+from sqlalchemy import BinaryExpression, ColumnElement, and_, func, or_, select, true
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
@@ -32,17 +32,19 @@ async def get_locality(
     outer_limit: int = 5,
     total_limit: int = 250,
     main_releases_only: bool = True,
-    offset: set[str] | None = 0,
+    offset: int = 0,
     roles: set[str] | None = None,
     styles: set[str] | None = None,
     styles_op: BooleanOp = BooleanOp.OR,
     years: tuple[int | None, int | None] = (None, None),
-) -> tuple[Sequence[Vertex], Sequence[Edge]]:
+) -> tuple[set[Vertex], set[Edge]]:
     center_vertex = await get_vertex(
         session=session, eid=center_eid, label=center_label, index=center_index
     )
+    if center_vertex is None:
+        raise RuntimeError
     vertices: set[Vertex] = {center_vertex}
-    initial_vertex_ids: list[int] = [center_vertex.id]
+    initial_vertex_ids: set[int] = {center_vertex.id}
     limit = inner_limit
     while len(vertices) < total_limit:
         neighbors = await _get_locality_neighbors(
@@ -64,7 +66,7 @@ async def get_locality(
         )
         new_vertices = [that_vertex for _, _, that_vertex in neighbors]
         vertices.update(new_vertices)
-        initial_vertex_ids = [vertex.id for vertex in new_vertices]
+        initial_vertex_ids = {vertex.id for vertex in new_vertices}
         limit = outer_limit
         offset = 0
     edges = await _get_locality_edges(
@@ -77,10 +79,10 @@ async def get_locality(
 
 async def _get_locality_edges(
     *,
-    roles: set[str],
+    roles: set[str] | None = None,
     session: AsyncSession,
     vertex_ids: set[int],
-) -> Sequence[Edge]:
+) -> set[Edge]:
     this_vertex = aliased(Vertex, name="this_vertex")
     that_vertex = aliased(Vertex, name="that_vertex")
     query = (
@@ -103,19 +105,20 @@ async def _get_locality_edges(
         )
         .where(this_vertex.id.in_(vertex_ids))
         .where(that_vertex.id.in_(vertex_ids))
-        .where(Edge.role.in_(roles))
     )
-    return (await session.execute(query)).tuples().all()
+    if roles:
+        query = query.where(Edge.name.in_(roles))
+    return set((await session.execute(query)).scalars().all())
 
 
 async def _get_locality_neighbors(
     *,
     countries: set[str] | None = None,
-    excluded_vertex_ids: Sequence[int],
+    excluded_vertex_ids: set[int],
     formats: set[str] | None = None,
     formats_op: BooleanOp = BooleanOp.OR,
     genres: set[str] | None = None,
-    initial_vertex_ids: Sequence[int],
+    initial_vertex_ids: set[int],
     labels: set[VertexLabel] | None = None,
     limit: int = 10,
     main_releases_only: bool = True,
@@ -151,7 +154,7 @@ async def _get_locality_neighbors(
         .offset(offset)
     )
     # release & track filtering predicates
-    predicates = []
+    predicates: list[ColumnElement[bool] | BinaryExpression[bool]] = []
     if countries:
         predicates.append(other_vertex.country.in_(countries))
     if formats:
