@@ -87,6 +87,7 @@ async def _get_locality_edges(
     that_vertex = aliased(Vertex, name="that_vertex")
     query = (
         select(Edge)
+        .distinct(Edge.computed_id)
         .join(
             this_vertex,
             and_(
