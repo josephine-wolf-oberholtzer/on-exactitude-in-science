@@ -6,7 +6,7 @@ from sqlalchemy import BinaryExpression, ColumnElement, and_, func, or_, select,
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
-from .constants import VertexLabel
+from .constants import Direction, VertexLabel
 from .models import Edge, Vertex
 
 MINIMUM_NAME_LENGTH = 3
@@ -29,21 +29,21 @@ async def get_locality(
     genres: set[str] | None = None,
     labels: set[VertexLabel] | None = None,
     inner_limit: int = 50,
-    outer_limit: int = 5,
-    total_limit: int = 250,
+    outer_limit: int = 10,
+    total_limit: int = 500,
     main_releases_only: bool = True,
     offset: int = 0,
     roles: set[str] | None = None,
     styles: set[str] | None = None,
     styles_op: BooleanOp = BooleanOp.OR,
     years: tuple[int | None, int | None] = (None, None),
-) -> tuple[set[Vertex], set[Edge]]:
+) -> tuple[list[Vertex], set[Edge]]:
     center_vertex = await get_vertex(
         session=session, eid=center_eid, label=center_label, index=center_index
     )
     if center_vertex is None:
         raise RuntimeError
-    vertices: set[Vertex] = {center_vertex}
+    vertices: list[Vertex] = [center_vertex]
     initial_vertex_ids: set[int] = {center_vertex.id}
     limit = inner_limit
     while len(vertices) < total_limit:
@@ -64,17 +64,51 @@ async def get_locality(
             styles_op=styles_op,
             years=years,
         )
-        new_vertices = [that_vertex for _, _, that_vertex in neighbors]
-        vertices.update(new_vertices)
+        # a vertex may neighbor several initial vertices; keep one copy of each
+        new_vertices = list({that.id: that for _, that in neighbors}.values())
+        vertices.extend(new_vertices)
         initial_vertex_ids = {vertex.id for vertex in new_vertices}
         limit = outer_limit
         offset = 0
+    vertices = vertices[:total_limit]
     edges = await _get_locality_edges(
         roles=roles,
         session=session,
         vertex_ids={vertex.id for vertex in vertices},
     )
+    # TODO:
+    #    Child count of each vertex (incoming "Member Of", "Subsidiary Of", "Subrelease Of")
+    #    Total edge count of each vertex, using tbe query params (supports a "get more" interaction)
+    #    Grouped roles for center edges
     return vertices, edges
+
+
+async def _get_locality_child_counts(
+    *,
+    session: AsyncSession,
+    vertex_ids: set[int],
+) -> dict[int, int]:
+    query = (
+        # edge filters live in the join condition, not WHERE, so that vertices
+        # without matching edges survive the outer join with a count of zero
+        select(Vertex.id, func.count(Edge.name))
+        .select_from(Vertex)
+        .outerjoin(
+            Edge,
+            and_(
+                Edge.this_label == Vertex.label,
+                Edge.this_eid == Vertex.eid,
+                Edge.this_index == Vertex.index,
+                Edge.name.in_(["Member Of", "Subsidiary Of", "Subrelease Of"]),
+                Edge.direction == int(Direction.THAT_TO_THIS),
+            ),
+        )
+        .where(Vertex.id.in_(vertex_ids))
+        .group_by(Vertex.id)
+    )
+    return {
+        vertex_id: count for vertex_id, count in (await session.execute(query)).tuples()
+    }
 
 
 async def _get_locality_edges(
@@ -129,12 +163,14 @@ async def _get_locality_neighbors(
     styles: set[str] | None = None,
     styles_op: BooleanOp = BooleanOp.OR,
     years: tuple[int | None, int | None] = (None, None),
-) -> Sequence[tuple[Vertex, Edge, Vertex]]:
+) -> Sequence[tuple[Vertex, Vertex]]:
     this_vertex = aliased(Vertex, name="this_vertex")
     other_vertex = aliased(Vertex, name="other_vertex")
     # neighbors of a single this_vertex, correlated to the enclosing query
     inner = (
-        select(Edge, other_vertex)
+        select(other_vertex)
+        .distinct()
+        .select_from(Edge)
         .join(
             other_vertex,
             and_(
@@ -194,10 +230,9 @@ async def _get_locality_neighbors(
             )
         )
     neighbors = inner.lateral("neighbors")
-    edge = aliased(Edge, neighbors)
     that_vertex = aliased(Vertex, neighbors, name="that_vertex")
     query = (
-        select(this_vertex, edge, that_vertex)
+        select(this_vertex, that_vertex)
         .select_from(this_vertex)
         .join(neighbors, true())
         .where(this_vertex.id.in_(initial_vertex_ids))
