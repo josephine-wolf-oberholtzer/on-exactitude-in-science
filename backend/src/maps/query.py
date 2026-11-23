@@ -37,7 +37,7 @@ async def get_locality(
     styles: set[str] | None = None,
     styles_op: BooleanOp = BooleanOp.OR,
     years: tuple[int | None, int | None] = (None, None),
-) -> tuple[list[Vertex], set[Edge]]:
+) -> tuple[list[Vertex], set[tuple[Edge, int, int]], dict[int, int], dict[str, int]]:
     center_vertex = await get_vertex(
         session=session, eid=center_eid, label=center_label, index=center_index
     )
@@ -76,11 +76,17 @@ async def get_locality(
         session=session,
         vertex_ids={vertex.id for vertex in vertices},
     )
+    child_counts = await _get_locality_child_counts(
+        session=session,
+        vertex_ids={vertex.id for vertex in vertices},
+    )
+    edge_counts = await _get_locality_edge_counts(
+        session=session,
+        vertex_ids={center_vertex.id},
+    )
     # TODO:
-    #    Child count of each vertex (incoming "Member Of", "Subsidiary Of", "Subrelease Of")
     #    Total edge count of each vertex, using tbe query params (supports a "get more" interaction)
-    #    Grouped roles for center edges
-    return vertices, edges
+    return vertices, edges, child_counts, edge_counts.get(center_vertex.id, {})
 
 
 async def _get_locality_child_counts(
@@ -111,16 +117,45 @@ async def _get_locality_child_counts(
     }
 
 
+async def _get_locality_edge_counts(
+    *,
+    session: AsyncSession,
+    vertex_ids: set[int],
+) -> dict[int, dict[str, int]]:
+    query = (
+        select(Vertex.id, Edge.name, func.count())
+        .select_from(Edge)
+        .join(
+            Vertex,
+            and_(
+                Vertex.label == Edge.this_label,
+                Vertex.eid == Edge.this_eid,
+                Vertex.index == Edge.this_index,
+            ),
+        )
+        .where(Vertex.id.in_(vertex_ids))
+        .group_by(Vertex.id, Edge.name)
+    )
+    counts: dict[int, dict[str, int]] = {}
+    for vertex_id, name, count in (await session.execute(query)).tuples():
+        counts.setdefault(vertex_id, {})[name] = count
+    return counts
+
+
 async def _get_locality_edges(
     *,
     roles: set[str] | None = None,
     session: AsyncSession,
     vertex_ids: set[int],
-) -> set[Edge]:
+) -> set[tuple[Edge, int, int]]:
+    """
+    Get the edges among the given vertices, each as a tuple of the edge, its
+    ``this_vertex`` ID and its ``that_vertex`` ID.
+    """
     this_vertex = aliased(Vertex, name="this_vertex")
     that_vertex = aliased(Vertex, name="that_vertex")
     query = (
-        select(Edge)
+        select(Edge, this_vertex.id, that_vertex.id)
         .distinct(Edge.computed_id)
         .join(
             this_vertex,
@@ -143,7 +178,7 @@ async def _get_locality_edges(
     )
     if roles:
         query = query.where(Edge.name.in_(roles))
-    return set((await session.execute(query)).scalars().all())
+    return set((await session.execute(query)).tuples().all())
 
 
 async def _get_locality_neighbors(
