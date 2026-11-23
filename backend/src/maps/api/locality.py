@@ -1,3 +1,4 @@
+import traceback
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
@@ -101,6 +102,7 @@ async def get_locality(
             years=_parse_years(years),
         )
     except RuntimeError:
+        traceback.print_exc()
         raise HTTPException(status.HTTP_404_NOT_FOUND, f"No {label.value} {eid}")
     center_vertex = vertices[0]
     return LocalityResponse(

@@ -37,7 +37,7 @@ async def get_locality(
     styles: set[str] | None = None,
     styles_op: BooleanOp = BooleanOp.OR,
     years: tuple[int | None, int | None] = (None, None),
-) -> tuple[list[Vertex], set[tuple[Edge, int, int]], dict[int, int], dict[str, int]]:
+) -> tuple[list[Vertex], list[tuple[Edge, int, int]], dict[int, int], dict[str, int]]:
     center_vertex = await get_vertex(
         session=session, eid=center_eid, label=center_label, index=center_index
     )
@@ -147,7 +147,7 @@ async def _get_locality_edges(
     roles: set[str] | None = None,
     session: AsyncSession,
     vertex_ids: set[int],
-) -> set[tuple[Edge, int, int]]:
+) -> list[tuple[Edge, int, int]]:
     """
     Get the edges among the given vertices, each as a tuple of the edge, its
     ``this_vertex`` ID and its ``that_vertex`` ID.
@@ -178,7 +178,7 @@ async def _get_locality_edges(
     )
     if roles:
         query = query.where(Edge.name.in_(roles))
-    return set((await session.execute(query)).tuples().all())
+    return list((await session.execute(query)).tuples().all())
 
 
 async def _get_locality_neighbors(
