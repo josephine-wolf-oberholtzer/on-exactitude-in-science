@@ -19,6 +19,8 @@ class LocalityVertex(BaseModel):
     # Omitted when zero
     child_count: int | None = None
     country: str | None = None
+    # Hops from the center vertex, which is at zero
+    distance: int
     eid: int
     formats: list[str] | None = None
     genres: list[str] | None = None
@@ -94,7 +96,7 @@ async def get_locality(
     and every vertex carries a count of its children.
     """
     try:
-        vertices, edges, child_counts, edge_counts = await query_locality(
+        vertices, edges, child_counts, edge_counts, distances = await query_locality(
             center_eid=eid,
             center_index=index,
             center_label=VertexLabel[label.name],
@@ -134,6 +136,7 @@ async def get_locality(
             LocalityVertex(
                 child_count=child_counts.get(vertex.id) or None,
                 country=vertex.country,
+                distance=distances[vertex.id],
                 eid=vertex.eid,
                 formats=vertex.formats,
                 genres=vertex.genres,

@@ -37,7 +37,13 @@ async def get_locality(
     styles: set[str] | None = None,
     styles_op: BooleanOp = BooleanOp.OR,
     years: tuple[int | None, int | None] = (None, None),
-) -> tuple[list[Vertex], list[tuple[Edge, int, int]], dict[int, int], dict[str, int]]:
+) -> tuple[
+    list[Vertex],
+    list[tuple[Edge, int, int]],
+    dict[int, int],
+    dict[str, int],
+    dict[int, int],
+]:
     center_vertex = await get_vertex(
         session=session, eid=center_eid, label=center_label, index=center_index
     )
@@ -45,6 +51,9 @@ async def get_locality(
         raise RuntimeError
     vertices: list[Vertex] = [center_vertex]
     initial_vertex_ids: set[int] = {center_vertex.id}
+    # vertex ID -> number of hops from the center vertex
+    distances: dict[int, int] = {center_vertex.id: 0}
+    distance = 0
     limit = inner_limit
     while len(vertices) < total_limit:
         neighbors = await _get_locality_neighbors(
@@ -67,10 +76,13 @@ async def get_locality(
         # a vertex may neighbor several initial vertices; keep one copy of each
         new_vertices = list({that.id: that for _, that in neighbors}.values())
         vertices.extend(new_vertices)
+        distance += 1
+        distances.update({vertex.id: distance for vertex in new_vertices})
         initial_vertex_ids = {vertex.id for vertex in new_vertices}
         limit = outer_limit
         offset = 0
     vertices = vertices[:total_limit]
+    distances = {vertex.id: distances[vertex.id] for vertex in vertices}
     edges = await _get_locality_edges(
         roles=roles,
         session=session,
@@ -86,7 +98,13 @@ async def get_locality(
     )
     # TODO:
     #    Total edge count of each vertex, using tbe query params (supports a "get more" interaction)
-    return vertices, edges, child_counts, edge_counts.get(center_vertex.id, {})
+    return (
+        vertices,
+        edges,
+        child_counts,
+        edge_counts.get(center_vertex.id, {}),
+        distances,
+    )
 
 
 async def _get_locality_child_counts(
