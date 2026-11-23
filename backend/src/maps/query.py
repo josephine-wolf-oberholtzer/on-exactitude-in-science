@@ -105,7 +105,9 @@ async def _get_locality_child_counts(
                 Edge.this_label == Vertex.label,
                 Edge.this_eid == Vertex.eid,
                 Edge.this_index == Vertex.index,
-                Edge.name.in_(["Member Of", "Subsidiary Of", "Subrelease Of"]),
+                Edge.name.in_(
+                    ["Included On", "Member Of", "Subsidiary Of", "Subrelease Of"]
+                ),
                 Edge.direction == int(Direction.THAT_TO_THIS),
             ),
         )
