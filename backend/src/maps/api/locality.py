@@ -1,3 +1,4 @@
+import math
 import traceback
 from typing import Annotated
 
@@ -42,6 +43,18 @@ class LocalityEdge(BaseModel):
     this_id: int
 
 
+class Pagination(BaseModel):
+    # The one-based number of this page
+    page: int
+    # How many pages there are, given the page size and the total
+    page_count: int
+    # How many of the center vertex's neighbors are on each page. The center
+    # vertex itself takes the remaining slot of the requested size.
+    page_size: int
+    # The total number of neighbors of the center vertex that match the filters
+    total: int
+
+
 class LocalityResponse(BaseModel):
     # The distinct values across all vertices, sorted
     countries: list[str]
@@ -52,6 +65,7 @@ class LocalityResponse(BaseModel):
     genres: list[str]
     # The database ID of the center vertex
     id: int
+    pagination: Pagination
     styles: list[str]
     vertices: list[LocalityVertex]
 
@@ -76,7 +90,16 @@ async def get_locality(
     genres: Annotated[set[str] | None, Query()] = None,
     index: int = 0,
     labels: Annotated[set[VertexLabelName] | None, Query()] = None,
+    page: Annotated[int, Query(ge=1, description="One-based page number")] = 1,
     roles: Annotated[set[str] | None, Query()] = None,
+    size: Annotated[
+        int,
+        Query(
+            ge=2,
+            le=500,
+            description="Maximum vertices per page, including the center vertex",
+        ),
+    ] = 500,
     styles: Annotated[set[str] | None, Query()] = None,
     years: Annotated[
         str | None,
@@ -96,17 +119,27 @@ async def get_locality(
     and every vertex carries a count of its children.
     """
     try:
-        vertices, edges, child_counts, edge_counts, distances = await query_locality(
+        (
+            vertices,
+            edges,
+            child_counts,
+            edge_counts,
+            distances,
+            center_neighbor_count,
+        ) = await query_locality(
             center_eid=eid,
             center_index=index,
             center_label=VertexLabel[label.name],
             countries=countries,
             formats=formats,
             genres=genres,
+            inner_limit=size - 1,
             labels={VertexLabel[name.name] for name in labels} if labels else None,
+            offset=(page - 1) * (size - 1),
             roles=roles,
             session=session,
             styles=styles,
+            total_limit=size,
             years=_parse_years(years),
         )
     except RuntimeError:
@@ -131,6 +164,12 @@ async def get_locality(
         formats=sorted({f for v in vertices for f in v.formats or []}),
         genres=sorted({g for v in vertices for g in v.genres or []}),
         id=center_vertex.id,
+        pagination=Pagination(
+            page=page,
+            page_count=math.ceil(center_neighbor_count / (size - 1)),
+            page_size=size - 1,
+            total=center_neighbor_count,
+        ),
         styles=sorted({s for v in vertices for s in v.styles or []}),
         vertices=[
             LocalityVertex(

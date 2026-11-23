@@ -43,19 +43,38 @@ async def get_locality(
     dict[int, int],
     dict[str, int],
     dict[int, int],
+    int,
 ]:
     center_vertex = await get_vertex(
         session=session, eid=center_eid, label=center_label, index=center_index
     )
     if center_vertex is None:
         raise RuntimeError
-    vertices: list[Vertex] = [center_vertex]
-    initial_vertex_ids: set[int] = {center_vertex.id}
     # vertex ID -> number of hops from the center vertex
-    distances: dict[int, int] = {center_vertex.id: 0}
-    distance = 0
-    limit = inner_limit
-    while len(vertices) < total_limit:
+    center_neighbors, center_neighbor_count = await _get_locality_center_neighbors(
+        center_vertex=center_vertex,
+        countries=countries,
+        formats=formats,
+        formats_op=formats_op,
+        genres=genres,
+        labels=labels,
+        # the center vertex takes one slot of the total
+        limit=min(inner_limit, total_limit - 1),
+        offset=offset,
+        roles=roles,
+        session=session,
+        styles=styles,
+        styles_op=styles_op,
+        years=years,
+    )
+    vertices: list[Vertex] = [center_vertex, *center_neighbors]
+    initial_vertex_ids: set[int] = {vertex.id for vertex in center_neighbors}
+    distances: dict[int, int] = {
+        center_vertex.id: 0,
+        **{vertex.id: 1 for vertex in center_neighbors},
+    }
+    distance = 2
+    while initial_vertex_ids and len(vertices) < total_limit:
         neighbors = await _get_locality_neighbors(
             countries=countries,
             excluded_vertex_ids={vertex.id for vertex in vertices},
@@ -64,9 +83,8 @@ async def get_locality(
             genres=genres,
             initial_vertex_ids=initial_vertex_ids,
             labels=labels,
-            limit=limit,
+            limit=outer_limit,
             main_releases_only=main_releases_only,
-            offset=offset,
             roles=roles,
             session=session,
             styles=styles,
@@ -75,12 +93,12 @@ async def get_locality(
         )
         # a vertex may neighbor several initial vertices; keep one copy of each
         new_vertices = list({that.id: that for _, that in neighbors}.values())
+        if not new_vertices:
+            break
         vertices.extend(new_vertices)
-        distance += 1
         distances.update({vertex.id: distance for vertex in new_vertices})
         initial_vertex_ids = {vertex.id for vertex in new_vertices}
-        limit = outer_limit
-        offset = 0
+        distance += 1
     vertices = vertices[:total_limit]
     distances = {vertex.id: distances[vertex.id] for vertex in vertices}
     edges = await _get_locality_edges(
@@ -104,7 +122,75 @@ async def get_locality(
         child_counts,
         edge_counts.get(center_vertex.id, {}),
         distances,
+        center_neighbor_count,
     )
+
+
+async def _get_locality_center_neighbors(
+    *,
+    center_vertex: Vertex,
+    countries: set[str] | None = None,
+    formats: set[str] | None = None,
+    formats_op: BooleanOp = BooleanOp.OR,
+    genres: set[str] | None = None,
+    labels: set[VertexLabel] | None = None,
+    limit: int,
+    offset: int = 0,
+    roles: set[str] | None = None,
+    session: AsyncSession,
+    styles: set[str] | None = None,
+    styles_op: BooleanOp = BooleanOp.OR,
+    years: tuple[int | None, int | None] = (None, None),
+) -> tuple[list[Vertex], int]:
+    """
+    Get one page of the center vertex's neighbors, and the total number of
+    neighbors that match the filters, regardless of paging.
+    """
+    other_vertex = aliased(Vertex, name="other_vertex")
+    neighbor_ids = (
+        select(other_vertex.id)
+        .select_from(Edge)
+        .join(
+            other_vertex,
+            and_(
+                other_vertex.label == Edge.that_label,
+                other_vertex.eid == Edge.that_eid,
+                other_vertex.index == Edge.that_index,
+            ),
+        )
+        .where(
+            Edge.this_label == center_vertex.label,
+            Edge.this_eid == center_vertex.eid,
+            Edge.this_index == center_vertex.index,
+            other_vertex.id != center_vertex.id,
+            *_get_neighbor_filters(
+                countries=countries,
+                formats=formats,
+                formats_op=formats_op,
+                genres=genres,
+                labels=labels,
+                other_vertex=other_vertex,
+                roles=roles,
+                styles=styles,
+                styles_op=styles_op,
+                years=years,
+            ),
+        )
+        .distinct()
+    )
+    total = await session.scalar(
+        select(func.count()).select_from(neighbor_ids.subquery())
+    )
+    page = (
+        select(Vertex)
+        .where(
+            Vertex.id.in_(
+                neighbor_ids.order_by(other_vertex.id).limit(limit).offset(offset)
+            )
+        )
+        .order_by(Vertex.id)
+    )
+    return list((await session.scalars(page)).all()), total or 0
 
 
 async def _get_locality_child_counts(
@@ -245,6 +331,54 @@ async def _get_locality_neighbors(
         .limit(limit)
         .offset(offset)
     )
+    inner = inner.where(
+        *_get_neighbor_filters(
+            countries=countries,
+            formats=formats,
+            formats_op=formats_op,
+            genres=genres,
+            labels=labels,
+            other_vertex=other_vertex,
+            roles=roles,
+            styles=styles,
+            styles_op=styles_op,
+            years=years,
+        )
+    )
+    neighbors = inner.lateral("neighbors")
+    that_vertex = aliased(Vertex, neighbors, name="that_vertex")
+    query = (
+        select(this_vertex, that_vertex)
+        .select_from(this_vertex)
+        .join(neighbors, true())
+        .where(this_vertex.id.in_(initial_vertex_ids))
+        .order_by(this_vertex.id, that_vertex.id)
+    )
+    return (await session.execute(query)).tuples().all()
+
+
+def _get_neighbor_filters(
+    *,
+    countries: set[str] | None = None,
+    formats: set[str] | None = None,
+    formats_op: BooleanOp = BooleanOp.OR,
+    genres: set[str] | None = None,
+    labels: set[VertexLabel] | None = None,
+    other_vertex: type[Vertex],
+    roles: set[str] | None = None,
+    styles: set[str] | None = None,
+    styles_op: BooleanOp = BooleanOp.OR,
+    years: tuple[int | None, int | None] = (None, None),
+) -> list[ColumnElement[bool] | BinaryExpression[bool]]:
+    """
+    Build the ``WHERE`` clauses that restrict neighbors, shared by every
+    neighbor search.
+    """
+    clauses: list[ColumnElement[bool] | BinaryExpression[bool]] = []
+    if labels:
+        clauses.append(other_vertex.label.in_(labels))
+    if roles:
+        clauses.append(Edge.name.in_(roles))
     # release & track filtering predicates
     predicates: list[ColumnElement[bool] | BinaryExpression[bool]] = []
     if countries:
@@ -271,12 +405,8 @@ async def _get_locality_neighbors(
         predicates.append(
             or_(other_vertex.year.is_(None), other_vertex.year <= years[1])
         )
-    if labels:
-        inner = inner.where(other_vertex.label.in_(labels))
-    if roles:
-        inner = inner.where(Edge.name.in_(roles))
     if predicates:
-        inner = inner.where(
+        clauses.append(
             or_(
                 other_vertex.label.in_(
                     [VertexLabel.ARTIST, VertexLabel.COMPANY, VertexLabel.MASTER]
@@ -284,16 +414,7 @@ async def _get_locality_neighbors(
                 and_(*predicates),
             )
         )
-    neighbors = inner.lateral("neighbors")
-    that_vertex = aliased(Vertex, neighbors, name="that_vertex")
-    query = (
-        select(this_vertex, that_vertex)
-        .select_from(this_vertex)
-        .join(neighbors, true())
-        .where(this_vertex.id.in_(initial_vertex_ids))
-        .order_by(this_vertex.id, that_vertex.id)
-    )
-    return (await session.execute(query)).tuples().all()
+    return clauses
 
 
 async def get_vertex(
