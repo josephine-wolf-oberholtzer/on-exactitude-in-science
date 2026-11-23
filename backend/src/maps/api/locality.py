@@ -1,7 +1,7 @@
 import traceback
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -9,7 +9,6 @@ from ..constants import Direction, VertexLabel, VertexLabelName
 from ..models import VideoDict
 from ..query import get_locality as query_locality
 from .dependencies import get_session
-from .utility import get_vertex_url
 
 router = APIRouter(prefix="/locality", tags=["locality"])
 
@@ -17,20 +16,19 @@ Session = Annotated[AsyncSession, Depends(get_session)]
 
 
 class LocalityVertex(BaseModel):
-    child_count: int
+    # Omitted when zero
+    child_count: int | None = None
     country: str | None = None
-    # Only populated for the center vertex: its edge counts, keyed by edge name
-    edge_counts: dict[str, int] | None = None
     eid: int
     formats: list[str] | None = None
     genres: list[str] | None = None
     id: int
-    index: int
+    # Only set for tracks, which share their release's ID
+    index: int | None = None
     label: str
     name: str
     position: str | None = None
     styles: list[str] | None = None
-    url: str
     videos: list[VideoDict] | None = None
     year: int | None = None
 
@@ -43,7 +41,16 @@ class LocalityEdge(BaseModel):
 
 
 class LocalityResponse(BaseModel):
+    # The distinct values across all vertices, sorted
+    countries: list[str]
+    # The center vertex's edge counts, keyed by edge name
+    edge_counts: dict[str, int]
     edges: list[LocalityEdge]
+    formats: list[str]
+    genres: list[str]
+    # The database ID of the center vertex
+    id: int
+    styles: list[str]
     vertices: list[LocalityVertex]
 
 
@@ -57,9 +64,8 @@ def _parse_years(years: str | None) -> tuple[int | None, int | None]:
     return (int(start) if start else None, int(end) if end else None)
 
 
-@router.get("/")
+@router.get("/", response_model_exclude_none=True)
 async def get_locality(
-    request: Request,
     session: Session,
     eid: int,
     label: VertexLabelName,
@@ -84,8 +90,8 @@ async def get_locality(
     """
     Get the neighborhood of an entity: nearby vertices and the edges among them.
 
-    The center vertex carries its edge counts, grouped by edge name. Every
-    vertex carries a count of its children.
+    The response carries the center vertex's edge counts, grouped by edge name,
+    and every vertex carries a count of its children.
     """
     try:
         vertices, edges, child_counts, edge_counts = await query_locality(
@@ -106,6 +112,8 @@ async def get_locality(
         raise HTTPException(status.HTTP_404_NOT_FOUND, f"No {label.value} {eid}")
     center_vertex = vertices[0]
     return LocalityResponse(
+        countries=sorted({v.country for v in vertices if v.country}),
+        edge_counts=edge_counts,
         edges=[
             LocalityEdge(
                 direction=Direction(edge.direction),
@@ -118,21 +126,23 @@ async def get_locality(
                 key=lambda row: (row[0].name, row[1], row[2], row[0].direction),
             )
         ],
+        formats=sorted({f for v in vertices for f in v.formats or []}),
+        genres=sorted({g for v in vertices for g in v.genres or []}),
+        id=center_vertex.id,
+        styles=sorted({s for v in vertices for s in v.styles or []}),
         vertices=[
             LocalityVertex(
-                child_count=child_counts.get(vertex.id, 0),
+                child_count=child_counts.get(vertex.id) or None,
                 country=vertex.country,
-                edge_counts=edge_counts if vertex is center_vertex else None,
                 eid=vertex.eid,
                 formats=vertex.formats,
                 genres=vertex.genres,
                 id=vertex.id,
-                index=vertex.index,
+                index=vertex.index if vertex.label == VertexLabel.TRACK else None,
                 label=VertexLabel(vertex.label).name.lower(),
                 name=vertex.name,
                 position=vertex.position,
                 styles=vertex.styles,
-                url=get_vertex_url(request, vertex),
                 videos=vertex.videos,
                 year=vertex.year,
             )

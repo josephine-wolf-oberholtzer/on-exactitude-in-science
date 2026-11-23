@@ -21,12 +21,11 @@ dependencies = [
   "asyncpg",
   "click",
   "fastapi",
-  "gunicorn",
   "lxml",
   "pydantic >= 2.14",
   "sqlalchemy[asyncio]",
   "uqbar",
-  "uvicorn-worker",
+  "uvicorn",
   "uvloop",
 ]
 description = "On Exactitude in Science"
