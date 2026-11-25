@@ -1,9 +1,12 @@
 {
-  "$schema": "https://biomejs.dev/schemas/2.6.5/schema.json",
+  "$schema": "https://biomejs.dev/schemas/2.6.9/schema.json",
   "files": {
-    "includes": ["frontend/**"]
-  },
-  "javascript": {
-    "jsxRuntime": "reactClassic"
+    "includes": [
+      "frontend/**",
+      "!**/node_modules",
+      "!**/dist",
+      "!frontend/src/api/schema.d.ts",
+      "!frontend/openapi.json"
+    ]
   }
 }

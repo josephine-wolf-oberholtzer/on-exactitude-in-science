@@ -1,11 +1,11 @@
-FROM alpine:3.11.6 as builder
+FROM node:24-alpine AS builder
 
-RUN apk update && apk add nodejs yarn
-COPY package.json .
-RUN yarn install --no-optional
+WORKDIR /app
+COPY package.json package-lock.json ./
+RUN npm ci
 COPY . .
-RUN yarn build-production
+RUN npm run build
 
 FROM nginx:mainline-alpine
 COPY default.conf /etc/nginx/conf.d/
-COPY --from=builder dist/* /var/www/html/
+COPY --from=builder /app/dist/ /var/www/html/

@@ -6,7 +6,7 @@ LIMIT ?= 10000
 WORKERS ?= 8
 
 build:
-	cd frontend && yarn install && yarn build
+	cd frontend && npm ci && npm run build
 
 fetch-dataset:
 	mkdir -p data/
